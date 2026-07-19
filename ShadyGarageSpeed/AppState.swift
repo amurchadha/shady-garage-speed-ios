@@ -1,0 +1,138 @@
+// AppState.swift — app-wide navigation (phase state machine) + shared services (toasts).
+// Mirrors main.js: menu → setup → garage ⇄ build → race → results → garage.
+import Foundation
+import Combine
+
+// GamePhase lives in GamePhase.swift
+
+struct Toast: Identifiable, Equatable {
+    enum Kind { case good, bad, warn, info }
+    let id = UUID()
+    let text: String
+    let kind: Kind
+}
+
+final class ToastCenter: ObservableObject {
+    @Published private(set) var toasts: [Toast] = []
+
+    func push(_ text: String, _ kind: Toast.Kind = .info) {
+        if Thread.isMainThread {
+            emit(text, kind)
+        } else {
+            DispatchQueue.main.async { self.emit(text, kind) }
+        }
+    }
+
+    private func emit(_ text: String, _ kind: Toast.Kind) {
+        let t = Toast(text: text, kind: kind)
+        toasts.append(t)
+        while toasts.count > 5 { toasts.removeFirst() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
+            self?.toasts.removeAll { $0.id == t.id }
+        }
+    }
+}
+
+final class AppState: ObservableObject {
+    @Published var phase: GamePhase = .menu
+    @Published var lastFinish: FinishData?
+
+    let game = GameState()
+    let toasts = ToastCenter()
+
+    lazy var garageScene: GarageScene = GarageScene(game: game, toasts: toasts)
+    lazy var buildScene: BuildScene = BuildScene(game: game, toasts: toasts)
+    lazy var raceScene: RaceScene = RaceScene(game: game, toasts: toasts)
+
+    init() {
+        game.load() // restore save if present (New Game overwrites on Start)
+        raceScene.onFinish = { [weak self] data in
+            guard let self else { return }
+            self.lastFinish = data
+            self.phase = .results
+        }
+        raceScene.onExit = { [weak self] in
+            guard let self else { return }
+            self.phase = .garage
+            self.garageScene.enterPlay()
+        }
+    }
+
+    // MARK: navigation
+
+    func goMenu() {
+        garageScene.exitPlay()
+        garageScene.setMode(.attract)
+        phase = .menu
+    }
+
+    func goSetup() {
+        garageScene.setMode(.attract)
+        phase = .setup
+    }
+
+    func startNewGame(_ name: String, _ charIndex: Int) {
+        game.newGame(name, charIndex)
+        phase = .garage
+        garageScene.enterPlay()
+        toasts.push("Welcome, \(game.playerName)! Your garage is open.", .good)
+    }
+
+    func continueGame() {
+        phase = .garage
+        garageScene.enterPlay()
+    }
+
+    func goBuild() {
+        garageScene.exitPlay()
+        buildScene.refreshCustomCar()
+        phase = .build
+    }
+
+    func backToGarage() {
+        phase = .garage
+        garageScene.enterPlay()
+    }
+
+    func goRace() {
+        garageScene.exitPlay()
+        phase = .race
+        raceScene.startRun()
+    }
+
+    func raceAgain() {
+        phase = .race
+        raceScene.startRun()
+    }
+
+    /// Debug deep-link from launch args, e.g. `-phase race` (used for screenshots/testing).
+    func applyDebugPhase(_ name: String) {
+        switch name {
+        case "garage": continueGame()
+        case "build":  goBuild()
+        case "race":   goRace()
+        case "setup":  goSetup()
+        default:       break
+        }
+    }
+
+    /// Full debug arg set: -phase <p> -tod day|sunset|night -rain on|off -autodrive
+    func applyDebugArgs(_ args: [String]) {
+        if let i = args.firstIndex(of: "-tod"), i + 1 < args.count {
+            switch args[i + 1] {
+            case "day":    raceScene.forcedTOD = 0
+            case "sunset": raceScene.forcedTOD = 1
+            case "night":  raceScene.forcedTOD = 2
+            default:       break
+            }
+        }
+        if let i = args.firstIndex(of: "-rain"), i + 1 < args.count {
+            let v = args[i + 1]
+            raceScene.forcedRain = v == "on" ? true : v == "off" ? false : nil
+        }
+        if args.contains("-autodrive") { raceScene.autoDrive = true }
+        if let i = args.firstIndex(of: "-phase"), i + 1 < args.count {
+            applyDebugPhase(args[i + 1])
+        }
+    }
+}
