@@ -46,7 +46,7 @@ struct StealMinigameView: View {
                     .font(.footnote)
                     .foregroundStyle(Color.sgsMuted)
                     .multilineTextAlignment(.center)
-                SGSButton(title: "SWAP!", big: true) { resolve() }
+                SGSButton(title: "SWAP!", big: true, a11y: "mg-swap") { resolve() }
             }
             .padding(24)
             .frame(maxWidth: 480)

@@ -23,6 +23,7 @@ struct SetupView: View {
                         .overlay(RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.white.opacity(0.2), lineWidth: 2))
                         .frame(maxWidth: 260)
+                        .accessibilityIdentifier("setup-name")
                         .onChange(of: name) { _, v in
                             if v.count > 14 { name = String(v.prefix(14)) }
                         }
@@ -63,13 +64,17 @@ struct SetupView: View {
                             AudioEngine.shared.click()
                             selected = i
                         }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(f.name)
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityIdentifier("friend-card-\(i)")
                     }
                 }
 
                 HStack {
-                    SGSButton(title: "Back", ghost: true) { app.goMenu() }
+                    SGSButton(title: "Back", ghost: true, a11y: "setup-back") { app.goMenu() }
                     Spacer()
-                    SGSButton(title: "Start Day 1", big: true) {
+                    SGSButton(title: "Start Day 1", big: true, a11y: "start-day1") {
                         app.startNewGame(name, selected)
                     }
                 }

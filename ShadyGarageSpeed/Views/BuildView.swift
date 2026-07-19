@@ -79,11 +79,11 @@ struct BuildView: View {
                         Spacer()
                         if let cost {
                             SGSButton(title: "Upgrade $\(cost)", small: true,
-                                      disabled: game.cash < cost) {
+                                      disabled: game.cash < cost, a11y: "chassis-upgrade") {
                                 scene.upgradeChassis()
                             }
                         } else {
-                            SGSButton(title: "MAX", small: true, disabled: true) {}
+                            SGSButton(title: "MAX", small: true, disabled: true, a11y: "chassis-upgrade") {}
                         }
                     }
 
@@ -103,13 +103,13 @@ struct BuildView: View {
                             .padding(.vertical, 10)
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                            ForEach(game.inventory) { part in
-                                invCard(part)
+                            ForEach(Array(game.inventory.enumerated()), id: \.element.id) { i, part in
+                                invCard(part, index: i)
                             }
                         }
                     }
 
-                    SGSButton(title: "← Back to Garage") { app.backToGarage() }
+                    SGSButton(title: "← Back to Garage", a11y: "build-back") { app.backToGarage() }
                 }
             }
         }
@@ -134,7 +134,7 @@ struct BuildView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func invCard(_ part: Part) -> some View {
+    private func invCard(_ part: Part, index: Int) -> some View {
         let price = Int((Double(game.partSellPrice(part.tier)) * game.sellMult).rounded())
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -146,8 +146,8 @@ struct BuildView: View {
             Text(GameState.partLabels[part.type] ?? part.type)
                 .font(.system(size: 13, weight: .bold))
             HStack(spacing: 6) {
-                SGSButton(title: "Install", tiny: true) { scene.installPart(part.id) }
-                SGSButton(title: "Sell $\(price)", ghost: true, tiny: true) { scene.sellPart(part.id) }
+                SGSButton(title: "Install", tiny: true, a11y: "install-\(index)") { scene.installPart(part.id) }
+                SGSButton(title: "Sell $\(price)", ghost: true, tiny: true, a11y: "sell-\(index)") { scene.sellPart(part.id) }
             }
         }
         .padding(10)

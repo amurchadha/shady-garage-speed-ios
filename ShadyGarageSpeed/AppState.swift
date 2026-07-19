@@ -45,7 +45,16 @@ final class AppState: ObservableObject {
     lazy var raceScene: RaceScene = RaceScene(game: game, toasts: toasts)
 
     init() {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-reset") {
+            UserDefaults.standard.removeObject(forKey: "sgs_save") // fresh state for tests
+        }
         game.load() // restore save if present (New Game overwrites on Start)
+        if args.contains("-seedparts") {
+            // deterministic inventory for tests: one tier-3 part of each type
+            for t in GameState.partTypes { game.inventory.append(game.makePart(t, 3)) }
+            game.save()
+        }
         raceScene.onFinish = { [weak self] data in
             guard let self else { return }
             self.lastFinish = data

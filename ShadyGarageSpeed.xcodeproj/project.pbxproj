@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459D2610E8DE449ABE9064FC /* GarageScene.swift */; };
+		0E881E0E27E8FC50B727B4A7 /* ShadyGarageSpeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */; };
 		452F68CAB5E6C3D916B4111A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93796F6CD0BB7CB205280E5 /* SetupView.swift */; };
 		4FB38999747613F6C55EB702 /* BuildScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA66619143939B397757AA2 /* BuildScene.swift */; };
 		59101F89C848DEE58470911F /* SceneKit+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46BDDD67CAFAAEEE3A8308D /* SceneKit+Helpers.swift */; };
@@ -29,6 +30,16 @@
 		E57BC40DD9936E725E661F5C /* GamePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC054D87C37CF71468D8AE89 /* GamePhase.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		ADBEB7419C8442E2CC067C65 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 11F2D14CBD16F0C1B5ED095A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7BF8CD66247DE6458E2B0B4E;
+			remoteInfo = ShadyGarageSpeed;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ShadyGarageSpeed.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		459D2610E8DE449ABE9064FC /* GarageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScene.swift; sourceTree = "<group>"; };
@@ -44,6 +55,7 @@
 		AF616B871CFAA2DD05E0F4F3 /* CarFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarFactory.swift; sourceTree = "<group>"; };
 		B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedApp.swift; sourceTree = "<group>"; };
 		B37C45FDB8489AF19C8B161F /* BuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildView.swift; sourceTree = "<group>"; };
+		B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedUITests.swift; sourceTree = "<group>"; };
 		C5C43E9D0AEDB0DC640ABCC3 /* StealMinigameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StealMinigameView.swift; sourceTree = "<group>"; };
 		D6C53723B204C05D7AABF1C4 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
 		DC054D87C37CF71468D8AE89 /* GamePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePhase.swift; sourceTree = "<group>"; };
@@ -51,6 +63,7 @@
 		E93796F6CD0BB7CB205280E5 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		EEA66619143939B397757AA2 /* BuildScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildScene.swift; sourceTree = "<group>"; };
 		FC12FA2EB91307ACE9F87CFA /* RaceScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScene.swift; sourceTree = "<group>"; };
+		FC38C8C6C0C6E426C5F1B6C2 /* ShadyGarageSpeedUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ShadyGarageSpeedUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -70,10 +83,19 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		35889C5F53F95964C072DF75 /* ShadyGarageSpeedUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */,
+			);
+			path = ShadyGarageSpeedUITests;
+			sourceTree = "<group>";
+		};
 		39C93E7F8670B07C062135E0 = {
 			isa = PBXGroup;
 			children = (
 				50AB4B34462B9CDF4AF820CF /* ShadyGarageSpeed */,
+				35889C5F53F95964C072DF75 /* ShadyGarageSpeedUITests */,
 				8356C697EB2CE040DB153974 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -97,6 +119,7 @@
 			isa = PBXGroup;
 			children = (
 				28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */,
+				FC38C8C6C0C6E426C5F1B6C2 /* ShadyGarageSpeedUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -116,6 +139,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		48E34722D89992E2556F8C49 /* ShadyGarageSpeedUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AD75F3450FDCB882204C5FFE /* Build configuration list for PBXNativeTarget "ShadyGarageSpeedUITests" */;
+			buildPhases = (
+				DB14DD7FCDDD40F820F90547 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EC9A39832ED3448C96DCA861 /* PBXTargetDependency */,
+			);
+			name = ShadyGarageSpeedUITests;
+			packageProductDependencies = (
+			);
+			productName = ShadyGarageSpeedUITests;
+			productReference = FC38C8C6C0C6E426C5F1B6C2 /* ShadyGarageSpeedUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		7BF8CD66247DE6458E2B0B4E /* ShadyGarageSpeed */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 44CB7581BA52C4D1EEB4C0F9 /* Build configuration list for PBXNativeTarget "ShadyGarageSpeed" */;
@@ -141,6 +182,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					48E34722D89992E2556F8C49 = {
+						TestTargetID = 7BF8CD66247DE6458E2B0B4E;
+					};
+				};
 			};
 			buildConfigurationList = 755C990AD2C5A01870EAA92E /* Build configuration list for PBXProject "ShadyGarageSpeed" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -157,6 +203,7 @@
 			projectRoot = "";
 			targets = (
 				7BF8CD66247DE6458E2B0B4E /* ShadyGarageSpeed */,
+				48E34722D89992E2556F8C49 /* ShadyGarageSpeedUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -189,9 +236,47 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		DB14DD7FCDDD40F820F90547 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0E881E0E27E8FC50B727B4A7 /* ShadyGarageSpeedUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		EC9A39832ED3448C96DCA861 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7BF8CD66247DE6458E2B0B4E /* ShadyGarageSpeed */;
+			targetProxy = ADBEB7419C8442E2CC067C65 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		06EFCCB358B1E491BEF299C4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.amurchadha.shadygaragespeed.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ShadyGarageSpeed;
+			};
+			name = Release;
+		};
 		076CA9CF1DCED55B6F89D03E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -215,6 +300,28 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		AC6FBF226FD3CC9D9FFD7035 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.amurchadha.shadygaragespeed.uitests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = ShadyGarageSpeed;
+			};
+			name = Debug;
 		};
 		CA52C8596037ACA85B85657C /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -374,6 +481,15 @@
 			buildConfigurations = (
 				D80D2CCFB7714FA9C4E419BB /* Debug */,
 				E0EF24B9BB64131FC5F458F8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AD75F3450FDCB882204C5FFE /* Build configuration list for PBXNativeTarget "ShadyGarageSpeedUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC6FBF226FD3CC9D9FFD7035 /* Debug */,
+				06EFCCB358B1E491BEF299C4 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

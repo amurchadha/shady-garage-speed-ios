@@ -27,6 +27,7 @@ struct GarageView: View {
                             .background(Color.sgsPanel)
                             .clipShape(Capsule())
                             .transition(.opacity)
+                            .accessibilityIdentifier("garage-prompt")
                     }
                     Spacer()
                     if !compact {
@@ -81,12 +82,14 @@ struct GarageView: View {
                         Text("📅 Day \(game.day)")
                             .font(.system(size: 13, weight: .semibold))
                             .fixedSize()
+                            .accessibilityIdentifier("hud-day")
                         Text("💰 $\(game.cash)")
                             .font(.system(size: 13, weight: .semibold))
                             .fixedSize()
+                            .accessibilityIdentifier("hud-cash")
                         Spacer()
-                        SGSButton(title: "🔧 Build", small: true) { app.goBuild() }
-                        SGSButton(title: "🏁 Race", small: true) { app.goRace() }
+                        SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
+                        SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                     }
                     HStack(spacing: 14) {
                         Spacer()
@@ -103,9 +106,11 @@ struct GarageView: View {
                     Text("📅 Day \(game.day)")
                         .font(.system(size: 14, weight: .semibold))
                         .fixedSize()
+                        .accessibilityIdentifier("hud-day")
                     Text("💰 $\(game.cash)")
                         .font(.system(size: 14, weight: .semibold))
                         .fixedSize()
+                        .accessibilityIdentifier("hud-cash")
                     Spacer()
                     meter("Suspicion", value: game.suspicion,
                           color: game.suspicion >= 90 ? .sgsBad : game.suspicion >= 50 ? .sgsWarn : .sgsGood,
@@ -113,8 +118,8 @@ struct GarageView: View {
                     meter("Heat", value: game.heat,
                           color: Color(rgb: 0xf97316), barWidth: 60)
                     Spacer()
-                    SGSButton(title: "🔧 Build", small: true) { app.goBuild() }
-                    SGSButton(title: "🏁 Race", small: true) { app.goRace() }
+                    SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
+                    SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                 }
             }
         }
@@ -159,8 +164,10 @@ struct GarageView: View {
                         HStack {
                             Text("Job total: **$\(scene.jobTotal)**")
                                 .font(.system(size: 15))
+                                .accessibilityIdentifier("job-total")
                             Spacer()
-                            SGSButton(title: "Finish Job", disabled: scene.jobActions < 1) {
+                            SGSButton(title: "Finish Job", disabled: scene.jobActions < 1,
+                                      a11y: "finish-job") {
                                 scene.finishJob()
                             }
                         }
@@ -186,10 +193,12 @@ struct GarageView: View {
                     .foregroundStyle(condOK ? Color.sgsGood : Color.sgsWarn)
             }
             HStack(spacing: 8) {
-                SGSButton(title: "Fix", tiny: true, disabled: !p.needsService || p.fixed) {
+                SGSButton(title: "Fix", tiny: true, disabled: !p.needsService || p.fixed,
+                          a11y: "fix-\(i)") {
                     scene.fixPart(i)
                 }
-                SGSButton(title: "Steal", tiny: true, tint: Color(rgb: 0x7c3aed), disabled: p.stolen) {
+                SGSButton(title: "Steal", tiny: true, tint: Color(rgb: 0x7c3aed), disabled: p.stolen,
+                          a11y: "steal-\(i)") {
                     scene.stealPart(i)
                 }
                 if p.tier == 1 && !p.stolen {
@@ -220,10 +229,11 @@ struct GarageView: View {
                     .foregroundStyle(Color.sgsMuted)
                 HStack {
                     Spacer()
-                    SGSButton(title: "Pay $200 bribe", disabled: !scene.canBribe) {
+                    SGSButton(title: "Pay $200 bribe", disabled: !scene.canBribe,
+                              a11y: "cop-bribe") {
                         scene.copBribe()
                     }
-                    SGSButton(title: "Lay low", ghost: true) {
+                    SGSButton(title: "Lay low", ghost: true, a11y: "cop-laylow") {
                         scene.copLayLow()
                     }
                 }

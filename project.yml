@@ -21,3 +21,29 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
+  ShadyGarageSpeedUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ShadyGarageSpeedUITests
+    dependencies:
+      - target: ShadyGarageSpeed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.amurchadha.shadygaragespeed.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        TEST_TARGET_NAME: ShadyGarageSpeed
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+schemes:
+  ShadyGarageSpeed:
+    build:
+      targets:
+        ShadyGarageSpeed: all
+        ShadyGarageSpeedUITests: [test]
+    test:
+      targets:
+        - ShadyGarageSpeedUITests

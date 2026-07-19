@@ -38,9 +38,9 @@ struct ResultsView: View {
                         leaderboard(lap: res.lap)
 
                         HStack {
-                            SGSButton(title: "Race Again") { app.raceAgain() }
+                            SGSButton(title: "Race Again", a11y: "race-again") { app.raceAgain() }
                             Spacer()
-                            SGSButton(title: "Back to Garage", ghost: true) { app.backToGarage() }
+                            SGSButton(title: "Back to Garage", ghost: true, a11y: "results-back") { app.backToGarage() }
                         }
                         .padding(.top, 4)
                     }

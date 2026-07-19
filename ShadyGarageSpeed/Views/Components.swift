@@ -53,6 +53,7 @@ struct SGSButton: View {
     var tiny = false
     var tint: Color? = nil
     var disabled = false
+    var a11y: String? = nil
     var action: () -> Void = {}
 
     var body: some View {
@@ -74,6 +75,7 @@ struct SGSButton: View {
         .buttonStyle(.plain)
         .opacity(disabled ? 0.38 : 1)
         .disabled(disabled)
+        .accessibilityIdentifier(a11y ?? "")
     }
 }
 
@@ -115,6 +117,7 @@ struct StatBar: View {
             Text("\(value)")
                 .font(.system(size: 13, weight: .bold))
                 .frame(width: 30, alignment: .trailing)
+                .accessibilityIdentifier("stat-\(name.lowercased())")
         }
     }
 }
@@ -125,6 +128,7 @@ struct HoldButton: View {
     let label: String
     var tint: Color = .white
     var diameter: CGFloat = 64
+    var a11y: String? = nil
     @Binding var pressed: Bool
 
     var body: some View {
@@ -142,6 +146,8 @@ struct HoldButton: View {
                     .onEnded { _ in pressed = false }
             )
             .accessibilityLabel(label)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier(a11y ?? "")
     }
 }
 

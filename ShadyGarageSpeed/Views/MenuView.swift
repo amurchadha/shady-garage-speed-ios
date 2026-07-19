@@ -23,11 +23,11 @@ struct MenuView: View {
                     .padding(.bottom, 12)
 
                 VStack(spacing: 12) {
-                    SGSButton(title: "New Game", big: true) { app.goSetup() }
+                    SGSButton(title: "New Game", big: true, a11y: "new-game") { app.goSetup() }
                     if app.game.hasSave() {
-                        SGSButton(title: "Continue", big: true) { app.continueGame() }
+                        SGSButton(title: "Continue", big: true, a11y: "continue") { app.continueGame() }
                     }
-                    SGSButton(title: "How to Play", ghost: true, big: true) { showHowTo = true }
+                    SGSButton(title: "How to Play", ghost: true, big: true, a11y: "howto") { showHowTo = true }
                 }
                 .frame(maxWidth: 320)
             }

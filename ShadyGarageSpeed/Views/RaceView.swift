@@ -27,6 +27,7 @@ struct RaceView: View {
                     Text(scene.raceTimerText)
                         .font(.system(size: compact ? 26 : 38, weight: .heavy, design: .monospaced))
                         .shadow(color: .black.opacity(0.6), radius: 6, y: 3)
+                        .accessibilityIdentifier("race-timer")
                     Text(scene.conditionsText)
                         .font(.system(size: compact ? 11 : 13, weight: .heavy))
                         .tracking(2)
@@ -63,6 +64,7 @@ struct RaceView: View {
                 .padding(.top, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 .accessibilityLabel("Forfeit race")
+                .accessibilityIdentifier("forfeit")
 
                 // speed + NOS, bottom right above the touch cluster
                 VStack(alignment: .trailing, spacing: 6) {
@@ -81,6 +83,7 @@ struct RaceView: View {
                     HStack(alignment: .lastTextBaseline, spacing: 5) {
                         Text("\(scene.raceSpeedKmh)")
                             .font(.system(size: compact ? 38 : 54, weight: .black))
+                            .accessibilityIdentifier("race-speed")
                         Text("km/h")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(Color.sgsMuted)
@@ -106,18 +109,18 @@ struct RaceView: View {
                 HStack(alignment: .bottom) {
                     HStack(spacing: ctlSpacing) {
                         HoldButton(label: "◀", tint: Color.sgsCard2, diameter: btnD,
-                                   pressed: bind(\.inputLeft))
+                                   a11y: "tc-left", pressed: bind(\.inputLeft))
                         HoldButton(label: "▶", tint: Color.sgsCard2, diameter: btnD,
-                                   pressed: bind(\.inputRight))
+                                   a11y: "tc-right", pressed: bind(\.inputRight))
                     }
                     Spacer()
                     HStack(spacing: ctlSpacing) {
                         HoldButton(label: "NOS", tint: Color(rgb: 0x3b82f6), diameter: btnD,
-                                   pressed: bind(\.inputNos))
+                                   a11y: "tc-nos", pressed: bind(\.inputNos))
                         HoldButton(label: "BRK", tint: Color(rgb: 0xef4444), diameter: btnD,
-                                   pressed: bind(\.inputDown))
+                                   a11y: "tc-brake", pressed: bind(\.inputDown))
                         HoldButton(label: "GAS", tint: Color(rgb: 0x22c55e), diameter: btnD,
-                                   pressed: bind(\.inputUp))
+                                   a11y: "tc-gas", pressed: bind(\.inputUp))
                     }
                 }
                 .padding(.horizontal, 16)

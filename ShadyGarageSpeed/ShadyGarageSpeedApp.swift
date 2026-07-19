@@ -46,6 +46,7 @@ struct RootView: View {
                     Spacer()
                 }
             }
+            .allowsHitTesting(false) // toasts are display-only; never block taps
         }
         .onAppear { applyDebugArgOnce() }
     }
