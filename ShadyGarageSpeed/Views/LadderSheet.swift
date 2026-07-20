@@ -34,8 +34,9 @@ struct LadderSheet: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.sgsCard.ignoresSafeArea())
         .foregroundStyle(Color.sgsText)
+        .presentationDetents([.medium, .large])
+        .presentationBackground(.ultraThinMaterial)
     }
 
     @ViewBuilder

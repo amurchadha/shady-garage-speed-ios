@@ -19,7 +19,7 @@ struct BuildView: View {
             let landscapePhone = geo.size.height < 520
             let portraitPhone = !landscapePhone && geo.size.width < 700
             ZStack {
-                SceneKitView(controller: scene)
+                SceneKitView(controller: scene, fps: 30, thermal: app.thermalLimited)
                     .ignoresSafeArea()
 
                 if landscapePhone {

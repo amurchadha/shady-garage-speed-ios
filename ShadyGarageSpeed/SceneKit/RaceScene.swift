@@ -112,6 +112,30 @@ final class RaceScene: SceneController {
     var ladderWin = false
     /// Debug `-instantfinish`: finishLap fires ~1s after GO (deterministic tests).
     var instantFinish = false
+    /// User pause (⏸ HUD button): sim frozen, timer held, loops silenced.
+    @Published private(set) var paused = false
+
+    /// Freeze/resume the sim. Only valid during countdown/racing (not the finish roll).
+    func setPaused(_ p: Bool) {
+        stateLock.lock()
+        if p, phase != .count, phase != .racing {
+            stateLock.unlock()
+            return
+        }
+        simPaused = p
+        let resumeBoost = !p && boosting
+        let resumeEngine = !p && phase == .racing
+        stateLock.unlock()
+        DispatchQueue.main.async { self.paused = p }
+        if p {
+            sfx.nos(false)
+            Haptics.nosRumble(false)
+            sfx.engineSound(false)
+        } else {
+            if resumeEngine { sfx.engineSound(true) }
+            if resumeBoost { sfx.nos(true); Haptics.nosRumble(true) }
+        }
+    }
 
     // MARK: scene nodes
     private var carMesh: SCNNode?
@@ -162,6 +186,11 @@ final class RaceScene: SceneController {
         super.init()
         cameraNode.camera?.fieldOfView = 62
         cameraNode.camera?.zFar = 1200
+        // HDR + bloom for the race camera (lamps/flames glow at night)
+        cameraNode.camera?.wantsHDR = true
+        cameraNode.camera?.bloomIterationCount = 2
+        cameraNode.camera?.bloomThreshold = 0.8
+        cameraNode.camera?.bloomIntensity = 0.2
         buildTrack()
         buildMinimapData()
         buildScene()
@@ -535,6 +564,8 @@ final class RaceScene: SceneController {
         // sky IBL for the PBR materials, scaled per time-of-day (+ rain dim)
         applySkyEnvironment(scene, intensity: (todIndex == 0 ? 1.0 : todIndex == 1 ? 0.55 : 0.15)
                                               * (raining ? 0.75 : 1))
+        // bloom per TOD: subtle by day, glowing lamps/flames at night
+        cameraNode.camera?.bloomIntensity = todIndex == 0 ? 0.2 : todIndex == 1 ? 0.5 : 0.9
 
         hemiLight.intensity = c.hemi * 1000 * (raining ? 0.85 : 1)
         hemiLight.color = UIColor(rgb: c.hemiSky)
@@ -655,6 +686,7 @@ final class RaceScene: SceneController {
         boosting = false
         stateLock.unlock()
         sfx.nos(false)
+        Haptics.nosRumble(false)
         sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
         toasts.push("Race forfeited", .warn)
@@ -667,6 +699,7 @@ final class RaceScene: SceneController {
         boosting = false
         stateLock.unlock()
         sfx.nos(false)
+        Haptics.nosRumble(false)
         sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
     }
@@ -692,6 +725,7 @@ final class RaceScene: SceneController {
             boosting = false
             stateLock.unlock()
             sfx.nos(false)
+            Haptics.nosRumble(false)
             sfx.engineSound(false)
         } else {
             stateLock.lock()
@@ -709,6 +743,7 @@ final class RaceScene: SceneController {
         finishFired = false
         boosting = false
         sfx.nos(false)
+        Haptics.nosRumble(false)
         sfx.engineSound(false)
         for f in flames { f.isHidden = true }
         let lap = raceT
@@ -857,11 +892,12 @@ final class RaceScene: SceneController {
             let wantBoost = inputNos && !nosLockout
             let canBoost = nosMeter > 0 && abs(speed) > 0.5
             let nowBoosting = wantBoost && canBoost
-            if nowBoosting && !boosting { sfx.nos(true) }
-            if !nowBoosting && boosting { sfx.nos(false) }
+            if nowBoosting && !boosting { sfx.nos(true); Haptics.nosRumble(true) }
+            if !nowBoosting && boosting { sfx.nos(false); Haptics.nosRumble(false) }
             boosting = nowBoosting
             if boosting { nosMeter = max(0, nosMeter - 30 * Float(dt)) }
             else { nosMeter = min(100, nosMeter + 8 * Float(dt)) }
+            if boosting { Haptics.nosRumbleLevel(nosMeter / 100) } // rumble tracks the tank
             if inputNos && nosMeter <= 0 { nosLockout = true }
             if nosLockout && !inputNos && nosMeter > 15 { nosLockout = false }
             sfx.setEngineRPM(Double(abs(speed) / maxSpd))
@@ -919,6 +955,7 @@ final class RaceScene: SceneController {
                 pos.y = c.y + nz * Self.BARRIER_LAT * s
                 lat = Self.BARRIER_LAT * s
                 if wallCooldown <= 0 {
+                    Haptics.barrierThud(min(1, abs(speed) / maxSpd)) // thud scaled by impact
                     speed *= 0.5
                     wallCooldown = 0.25
                 }

@@ -74,9 +74,11 @@ struct StealMinigameView: View {
             defer { lastTick = now }
             guard let last = lastTick else { return }
             let dt = min(0.1, now - last)
+            let bandBefore = zoneBand(pos)
             pos += dir * 95 * dt
             if pos >= 100 { pos = 100; dir = -1 }
             if pos <= 0 { pos = 0; dir = 1 }
+            if zoneBand(pos) != bandBefore { Haptics.zoneTick() } // edge-crossing tick
         }
     }
 
@@ -93,6 +95,15 @@ struct StealMinigameView: View {
         case "yellow": return .sgsWarn
         default: return .sgsBad
         }
+    }
+
+    /// Which band the marker sits in (left red / left yellow / green / right yellow / right red).
+    private func zoneBand(_ p: Double) -> Int {
+        if p < g - 9 { return 0 }
+        if p < g { return 1 }
+        if p <= g + 18 { return 2 }
+        if p <= g + 27 { return 3 }
+        return 4
     }
 
     private func resolve() {

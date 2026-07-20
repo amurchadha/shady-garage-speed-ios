@@ -125,8 +125,7 @@ class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
     let cameraNode = SCNNode()
     private var lastTime: TimeInterval = 0
 
-    /// Set by AppState from scenePhase. Subclasses override appActiveChanged for
-    /// audio/input cleanup.
+    /// scenePhase lifecycle freeze (app backgrounded).
     var appActive = true {
         didSet {
             if appActive == oldValue { return }
@@ -134,6 +133,9 @@ class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
             appActiveChanged(appActive)
         }
     }
+
+    /// User-initiated freeze (race pause overlay) — same semantics as appActive.
+    var simPaused = false
 
     override init() {
         super.init()
@@ -150,7 +152,7 @@ class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
     func appActiveChanged(_ active: Bool) {}
 
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-        guard appActive else { lastTime = time; return }
+        guard appActive, !simPaused else { lastTime = time; return }
         let dt = lastTime == 0 ? 0 : min(0.05, time - lastTime)
         lastTime = time
         update(dt: dt)

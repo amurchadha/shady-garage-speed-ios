@@ -12,6 +12,15 @@ Fix cars. Maybe steal parts. Build a racer.
 - iPhone simulator or device running iOS 17.0+ (iPhone-first, portrait + landscape)
 - No packages, no CocoaPods, no network dependencies
 
+## App icon & launch screen
+
+The app icon is a pre-rendered 1024px voxel "SG" on the brand gradient
+(`ShadyGarageSpeed/Assets.xcassets/AppIcon.appiconset`, single-size). The launch screen
+uses `UILaunchScreen` (no storyboard): brand-dark `#0b0e14` background with the
+`LaunchLogo` image set centered, declared in `ShadyGarageSpeed/Info.plist` (merged with
+the generated keys). Icon wiring lives in `project.yml`
+(`ASSETCATALOG_COMPILER_APPICON_NAME`, `INFOPLIST_FILE`).
+
 ## Run
 
 1. Open `ShadyGarageSpeed.xcodeproj` in Xcode.
@@ -69,7 +78,19 @@ source verbatim.
 
 ## Native adaptations
 
-- **UIKit haptics**: steal success/fail, cop visit/raid, lap finish.
+- **UIKit haptics**: steal success/fail, cop visit/raid, lap finish — plus **CoreHaptics**
+  choreography (capability-guarded, fail-silent): continuous NOS rumble tracking the tank,
+  barrier-hit thuds scaled by impact speed, and minigame zone-edge ticks.
+- **Battery governor**: 30fps on menu/garage/build/results, 60fps on the race; when
+  `ProcessInfo.thermalState` hits .serious/.critical everything drops to 30fps and MSAA
+  switches off until it cools to .nominal/.fair.
+- **HDR + bloom**: the race camera runs `wantsHDR` with a 2-iteration bloom — subtle by
+  day (0.2), glowing at sunset (0.5) and night (0.9).
+- **Race pause**: ⏸ top-left freezes the sim (timer held, loops silenced) with
+  Resume / Forfeit / Quit to Menu.
+- **Native chrome**: ladder/cop/results are true SwiftUI `.sheet`s (`presentationDetents`
+  + `.ultraThinMaterial`); SF Symbols replace emoji in the chrome; monospaced digits in
+  the race timer and speedometer.
 - **Tap instead of hover**: parts highlight on tap (cyan emissive pulse) and the matching
   job-panel row highlights.
 - **Portrait camera framing**: in portrait the garage/build cameras tilt slightly so the car
@@ -100,6 +121,7 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-arch regular|rushed|skeptic|bigspender` — pin every generated customer to an archetype.
 - `-mgzone green|yellow|red` — force the steal minigame outcome.
 - `-watch` / `-nowatch` — pin the owner's watching state on / disable the watch cycle.
+- `-paused` — the race opens already paused (pause-overlay screenshots).
 - `-heat N` — set the Heat meter (persisted, so a relaunch keeps it).
 - `-cop` — every heat ≥70 arrival triggers a cop visit (deterministic cop-flow tests).
 - `-debughud` — show a live customer-car node count under the prompt (ghost-car regression hook).
@@ -136,10 +158,11 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 `hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
 `arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
-`pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`,
+`pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`, `menu-goal`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
 `catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
-`race-timer`, `race-speed`, `tc-left|right|gas|brake|nos`, `forfeit`,
+`race-timer`, `race-speed`, `race-pause`, `pause-overlay`, `pause-resume|forfeit|quit`,
+`tc-left|right|gas|brake|nos`, `forfeit`,
 `race-again`, `results-back`.
 
 ## Defect-fix pass (adversarial review)

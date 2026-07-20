@@ -22,6 +22,19 @@ struct MenuView: View {
                     .foregroundStyle(Color.sgsMuted)
                     .padding(.bottom, 12)
 
+                // goal framing: next pink-slip rival (or the legend state)
+                if app.game.legend {
+                    Text("👑 You are the Street Legend")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color(rgb: 0xf59e0b))
+                        .accessibilityIdentifier("menu-goal")
+                } else if let rival = GameState.ladderRival(app.game.ladder) {
+                    Text("Next rival: \(rival.name) — beat \(String(format: "%.1f", rival.time))s")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.sgsMuted)
+                        .accessibilityIdentifier("menu-goal")
+                }
+
                 VStack(spacing: 12) {
                     SGSButton(title: "New Game", big: true, a11y: "new-game") { app.goSetup() }
                     if app.game.hasSave() {

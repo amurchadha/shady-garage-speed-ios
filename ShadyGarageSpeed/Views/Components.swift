@@ -54,6 +54,7 @@ struct SGSButton: View {
     var tint: Color? = nil
     var disabled = false
     var a11y: String? = nil
+    var systemImage: String? = nil // SF Symbol chrome (replaces emoji where set)
     var action: () -> Void = {}
 
     var body: some View {
@@ -61,16 +62,24 @@ struct SGSButton: View {
             if !disabled { AudioEngine.shared.click() }
             action()
         } label: {
-            Text(title)
-                .font(.system(size: tiny ? 13 : small ? 14 : big ? 18 : 16, weight: .bold))
-                .padding(.horizontal, tiny ? 10 : small ? 14 : big ? 30 : 20)
-                .padding(.vertical, tiny ? 5 : small ? 7 : big ? 14 : 10)
-                .frame(minHeight: big ? 48 : nil)
-                .background(ghost ? Color.clear : (tint ?? Color.sgsAccent))
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: tiny ? 8 : small ? 10 : 12))
-                .overlay(RoundedRectangle(cornerRadius: tiny ? 8 : small ? 10 : 12)
-                    .stroke(Color.white.opacity(ghost ? 0.35 : 0), lineWidth: 2))
+            HStack(spacing: 5) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: tiny ? 12 : small ? 13 : 15, weight: .bold))
+                }
+                if !title.isEmpty {
+                    Text(title)
+                        .font(.system(size: tiny ? 13 : small ? 14 : big ? 18 : 16, weight: .bold))
+                }
+            }
+            .padding(.horizontal, tiny ? 10 : small ? 14 : big ? 30 : 20)
+            .padding(.vertical, tiny ? 5 : small ? 7 : big ? 14 : 10)
+            .frame(minHeight: big ? 48 : nil)
+            .background(ghost ? Color.clear : (tint ?? Color.sgsAccent))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: tiny ? 8 : small ? 10 : 12))
+            .overlay(RoundedRectangle(cornerRadius: tiny ? 8 : small ? 10 : 12)
+                .stroke(Color.white.opacity(ghost ? 0.35 : 0), lineWidth: 2))
         }
         .buttonStyle(.plain)
         .opacity(disabled ? 0.38 : 1)

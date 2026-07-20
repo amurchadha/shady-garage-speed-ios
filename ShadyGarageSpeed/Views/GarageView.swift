@@ -17,7 +17,7 @@ struct GarageView: View {
             ZStack(alignment: .top) {
                 SceneKitView(controller: scene, onTap: { pt, view in
                     scene.handleTap(pt, view)
-                })
+                }, fps: 30, thermal: app.thermalLimited)
                 .ignoresSafeArea()
 
                 VStack(spacing: 8) {
@@ -60,9 +60,6 @@ struct GarageView: View {
                     }
                 }
 
-                if scene.showCopModal {
-                    copModal
-                }
                 if let idx = scene.pendingStealIndex, let c = scene.customer, c.parts.indices.contains(idx) {
                     StealMinigameView(
                         title: "Swap the \((GameState.partLabels[c.parts[idx].type] ?? "part").lowercased())…",
@@ -80,6 +77,13 @@ struct GarageView: View {
             }
             .sheet(isPresented: $showLadder) {
                 LadderSheet(game: game)
+            }
+            .sheet(isPresented: Binding(get: { scene.showCopModal },
+                                        set: { scene.showCopModal = $0 })) {
+                copModal
+                    .presentationDetents([.medium])
+                    .presentationBackground(.ultraThinMaterial)
+                    .interactiveDismissDisabled(true) // a choice is required to continue
             }
         }
     }
@@ -101,8 +105,10 @@ struct GarageView: View {
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
                         Spacer()
-                        SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
-                        SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
+                        SGSButton(title: "Build", small: true, a11y: "nav-build",
+                                  systemImage: "wrench.fill") { app.goBuild() }
+                        SGSButton(title: "Race", small: true, a11y: "nav-race",
+                                  systemImage: "flag.checkered") { app.goRace() }
                     }
                     HStack(spacing: 14) {
                         Spacer()
@@ -111,10 +117,12 @@ struct GarageView: View {
                               barWidth: 64, a11y: "hud-suspicion")
                         meter("Heat", value: game.heat,
                               color: Color(rgb: 0xf97316), barWidth: 64, a11y: "hud-heat")
-                        SGSButton(title: "🏠", small: true, a11y: "nav-menu") { app.goMenu() }
-                        SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
-                                  a11y: "mute-toggle") { audio.toggleMute() }
-                        SGSButton(title: "🏆", small: true, a11y: "nav-ladder") { showLadder = true }
+                        SGSButton(title: "", small: true, a11y: "nav-menu",
+                                  systemImage: "house.fill") { app.goMenu() }
+                        SGSButton(title: "", small: true, a11y: "mute-toggle",
+                                  systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
+                        SGSButton(title: "", small: true, a11y: "nav-ladder",
+                                  systemImage: "trophy.fill") { showLadder = true }
                         Spacer()
                     }
                 }
@@ -135,12 +143,16 @@ struct GarageView: View {
                     meter("Heat", value: game.heat,
                           color: Color(rgb: 0xf97316), barWidth: 60, a11y: "hud-heat")
                     Spacer()
-                    SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
-                              a11y: "mute-toggle") { audio.toggleMute() }
-                    SGSButton(title: "🏆 Ladder", small: true, a11y: "nav-ladder") { showLadder = true }
-                    SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu") { app.goMenu() }
-                    SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
-                    SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
+                    SGSButton(title: "", small: true, a11y: "mute-toggle",
+                              systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
+                    SGSButton(title: "Ladder", small: true, a11y: "nav-ladder",
+                              systemImage: "trophy.fill") { showLadder = true }
+                    SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu",
+                              systemImage: "house.fill") { app.goMenu() }
+                    SGSButton(title: "Build", small: true, a11y: "nav-build",
+                              systemImage: "wrench.fill") { app.goBuild() }
+                    SGSButton(title: "Race", small: true, a11y: "nav-race",
+                              systemImage: "flag.checkered") { app.goRace() }
                 }
             }
         }
@@ -268,34 +280,31 @@ struct GarageView: View {
         .onTapGesture { scene.selectedPart = p.type }
     }
 
-    // MARK: cop modal
+    // MARK: cop modal (presented as a true .sheet)
 
     private var copModal: some View {
-        ZStack {
-            Color.black.opacity(0.66).ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 12) {
-                Text("🚨 Cops are sniffing around the garage.")
-                    .font(.title3.bold())
-                Text("Word is out that stolen parts move through here. Handle this quietly…")
-                    .foregroundStyle(Color.sgsMuted)
-                HStack {
-                    Spacer()
-                    SGSButton(title: "Pay $200 bribe", disabled: !scene.canBribe,
-                              a11y: "cop-bribe") {
-                        scene.copBribe()
-                    }
-                    SGSButton(title: "Lay low", ghost: true, a11y: "cop-laylow") {
-                        scene.copLayLow()
-                    }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("🚨 Cops are sniffing around the garage.")
+                .font(.title3.bold())
+            Text("Word is out that stolen parts move through here. Handle this quietly…")
+                .foregroundStyle(Color.sgsMuted)
+            if scene.copExplain {
+                Text("First visit? Heat at 70+ brings cops around. Bribe to cool off fast, or lay low and lose a day.")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.sgsWarn)
+            }
+            HStack {
+                Spacer()
+                SGSButton(title: "Pay $200 bribe", disabled: !scene.canBribe,
+                          a11y: "cop-bribe") {
+                    scene.copBribe()
+                }
+                SGSButton(title: "Lay low", ghost: true, a11y: "cop-laylow") {
+                    scene.copLayLow()
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 480)
-            .background(Color.sgsCard)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1))
-            .padding(16)
         }
+        .padding(24)
+        .foregroundStyle(Color.sgsText)
     }
 }

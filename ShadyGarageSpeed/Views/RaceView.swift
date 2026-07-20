@@ -3,8 +3,10 @@
 import SwiftUI
 
 struct RaceView: View {
+    @EnvironmentObject var app: AppState
     @ObservedObject var scene: RaceScene
     @ObservedObject private var audio = AudioEngine.shared
+    var thermal = false
 
     private func bind(_ kp: ReferenceWritableKeyPath<RaceScene, Bool>) -> Binding<Bool> {
         let scene = self.scene // class reference; mutate through it, not through self
@@ -20,13 +22,14 @@ struct RaceView: View {
             let mapSize: CGFloat = compact ? 96 : 140
             let nosW: CGFloat = compact ? 90 : 120
             ZStack {
-                SceneKitView(controller: scene)
+                SceneKitView(controller: scene, fps: 60, thermal: thermal)
                     .ignoresSafeArea()
 
                 // timer + conditions, top center
                 VStack(spacing: 2) {
                     Text(scene.raceTimerText)
                         .font(.system(size: compact ? 26 : 38, weight: .heavy, design: .monospaced))
+                        .monospacedDigit()
                         .shadow(color: .black.opacity(0.6), radius: 6, y: 3)
                         .accessibilityIdentifier("race-timer")
                     Text(scene.conditionsText)
@@ -46,25 +49,44 @@ struct RaceView: View {
                 .padding(.top, compact ? 2 : 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-                // minimap, top left (static outline image cached once per size;
-                // per-frame redraw is just the player dot)
-                minimap(size: mapSize)
-                    .frame(width: mapSize, height: mapSize)
-                    .background(Color(red: 10 / 255, green: 14 / 255, blue: 20 / 255).opacity(0.55))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1))
-                    .padding(.leading, 12)
-                    .padding(.top, 8)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // pause (top left, above the minimap)
+                VStack(spacing: 10) {
+                    Button {
+                        scene.setPaused(true)
+                    } label: {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.45))
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 1.5))
+                    }
+                    .accessibilityLabel("Pause race")
+                    .accessibilityIdentifier("race-pause")
+                    .disabled(scene.runPhase == "finished" || scene.paused)
+
+                    // minimap (static outline image cached once per size;
+                    // per-frame redraw is just the player dot)
+                    minimap(size: mapSize)
+                        .frame(width: mapSize, height: mapSize)
+                        .background(Color(red: 10 / 255, green: 14 / 255, blue: 20 / 255).opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.15), lineWidth: 1))
+                }
+                .padding(.leading, 12)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 // mute + forfeit, top right
                 HStack(spacing: 10) {
                     Button {
                         audio.toggleMute()
                     } label: {
-                        Text(audio.muted ? "🔇" : "🔊")
+                        Image(systemName: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                             .font(.system(size: 15))
+                            .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Color.black.opacity(0.45))
                             .clipShape(Circle())
@@ -111,6 +133,7 @@ struct RaceView: View {
                     HStack(alignment: .lastTextBaseline, spacing: 5) {
                         Text("\(scene.raceSpeedKmh)")
                             .font(.system(size: compact ? 38 : 54, weight: .black))
+                            .monospacedDigit()
                             .accessibilityIdentifier("race-speed")
                         Text("km/h")
                             .font(.system(size: 16, weight: .bold))
@@ -154,6 +177,39 @@ struct RaceView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                // pause overlay: sim frozen, timer held, loops silenced (topmost)
+                if scene.paused {
+                    Color.black.opacity(0.6).ignoresSafeArea()
+                    VStack(spacing: 14) {
+                        Text("PAUSED")
+                            .font(.system(size: 28, weight: .black))
+                            .tracking(3)
+                        Text(scene.raceTimerText)
+                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .monospacedDigit()
+                            .foregroundStyle(Color.sgsMuted)
+                        SGSButton(title: "Resume", big: true, a11y: "pause-resume") {
+                            scene.setPaused(false)
+                        }
+                        SGSButton(title: "Forfeit", ghost: true, a11y: "pause-forfeit") {
+                            scene.setPaused(false)
+                            scene.forfeit()
+                        }
+                        SGSButton(title: "Quit to Menu", ghost: true, a11y: "pause-quit") {
+                            scene.setPaused(false)
+                            scene.exitRace()
+                            app.goMenu()
+                        }
+                    }
+                    .padding(28)
+                    .frame(maxWidth: 340)
+                    .background(Color.sgsPanel)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("pause-overlay")
+                }
             }
             .animation(.spring(duration: 0.25), value: scene.countdownText)
         }

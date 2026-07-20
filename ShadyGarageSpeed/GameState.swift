@@ -90,6 +90,10 @@ final class GameState: ObservableObject {
     @Published var ladder = 0      // pink-slip ladder: next rival 0–3, 4 = champion
     @Published var legend = false  // became Street Legend (ladder completed)
 
+    // onboarding one-shots (persisted): heat explainer toast + cop modal line
+    var heatHintShown = false
+    var copHintShown = false
+
     // MARK: constants (exact match with web data.js)
 
     static let tierNames = ["", "Stock", "Sport", "Pro", "Elite"]
@@ -280,6 +284,8 @@ final class GameState: ObservableObject {
         raceCount = 0
         ladder = 0
         legend = false
+        heatHintShown = false
+        copHintShown = false
         save()
     }
 
@@ -296,7 +302,8 @@ final class GameState: ObservableObject {
             playerName: playerName, characterIndex: characterIndex, cash: cash, day: day,
             inventory: inventory, car: car, bestLap: bestLap, carValue: carValue,
             customersServed: customersServed, suspicion: suspicion, heat: heat,
-            raceCount: raceCount, ladder: ladder, legend: legend)
+            raceCount: raceCount, ladder: ladder, legend: legend,
+            heatHintShown: heatHintShown, copHintShown: copHintShown)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -342,6 +349,8 @@ final class GameState: ObservableObject {
         raceCount = max(0, raw.raceCount ?? 0)
         ladder = min(4, max(0, raw.ladder ?? 0))
         legend = (raw.legend ?? false) || ladder >= 4
+        heatHintShown = raw.heatHintShown ?? false
+        copHintShown = raw.copHintShown ?? false
     }
 }
 
@@ -362,6 +371,8 @@ struct SaveData: Codable {
     var raceCount: Int
     var ladder: Int
     var legend: Bool
+    var heatHintShown: Bool
+    var copHintShown: Bool
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -380,6 +391,8 @@ struct RawSave: Codable {
     var raceCount: Int?
     var ladder: Int?
     var legend: Bool?
+    var heatHintShown: Bool?
+    var copHintShown: Bool?
 }
 
 struct RawCar: Codable {

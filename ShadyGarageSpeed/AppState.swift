@@ -36,6 +36,9 @@ final class ToastCenter: ObservableObject {
 final class AppState: ObservableObject {
     @Published var phase: GamePhase = .menu
     @Published var lastFinish: FinishData?
+    /// Thermal downshift: true while ProcessInfo.thermalState is .serious/.critical —
+    /// SceneKitViews drop to 30fps and disable MSAA until it cools to .nominal/.fair.
+    @Published private(set) var thermalLimited = false
     /// Active pink-slip challenge: ladder position (0–3) being raced, nil = normal run.
     @Published var raceChallenge: Int?
     /// One-time 🏆 STREET LEGEND overlay (shown over the results screen).
@@ -73,6 +76,14 @@ final class AppState: ObservableObject {
             guard let self else { return }
             self.phase = .garage
             self.garageScene.enterPlay()
+        }
+
+        // battery governor: watch the thermal state (fail-safe: starts .nominal on sims)
+        let seriousOrWorse = { ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue }
+        thermalLimited = seriousOrWorse()
+        NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification,
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.thermalLimited = seriousOrWorse()
         }
     }
 
@@ -194,6 +205,10 @@ final class AppState: ObservableObject {
         if let i = args.firstIndex(of: "-challenge"), i + 1 < args.count,
            let pos = Int(args[i + 1]) {
             startChallenge(pos)
+        }
+        // -paused: freeze the race at the countdown for pause-overlay screenshots
+        if args.contains("-paused"), phase == .race {
+            raceScene.setPaused(true)
         }
     }
 }

@@ -21,6 +21,8 @@ final class GarageScene: SceneController {
     @Published var pendingStealIndex: Int?  // non-nil → SwiftUI shows the steal minigame
     @Published var showCopModal = false
     @Published private(set) var canBribe = false
+    /// True when the cop modal should show the first-time explainer line.
+    @Published private(set) var copExplain = false
 
     // MARK: internals
     private var mode: Mode = .attract
@@ -305,6 +307,9 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         prompt = "🚨 Cops are sniffing around…"
         canBribe = game.cash >= 200
+        copExplain = !game.copHintShown // first-ever visit gets an explainer line
+        game.copHintShown = true
+        game.save()
         showCopModal = true
         Haptics.notify(.warning)
     }
@@ -552,6 +557,10 @@ final class GarageScene: SceneController {
             jobActions += 1
             jobSteals += 1
             game.heat = min(100, game.heat + 6 + 2 * tier)
+            if game.heat >= 35 && !game.heatHintShown {
+                game.heatHintShown = true // one-time onboarding, persisted
+                toasts.push("🌡️ Heat draws the cops — they visit at 70, raid at 100. Clean jobs cool things down.", .warn)
+            }
             let gain = (zone == "green" ? Double(12 + 6 * tier) : Double(25 + 8 * tier)) * mult
             addSuspicion(gain)
             sfx.cash()

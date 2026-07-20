@@ -34,7 +34,7 @@ struct RootView: View {
             case .build:
                 BuildView(scene: app.buildScene, game: app.game)
             case .race:
-                RaceView(scene: app.raceScene)
+                RaceView(scene: app.raceScene, thermal: app.thermalLimited)
             case .results:
                 ResultsView()
             }
@@ -59,7 +59,7 @@ struct RootView: View {
     /// The garage scene also runs (in attract mode) behind the menu/setup screens.
     private func GarageBackground(attract: Bool) -> some View {
         ZStack {
-            SceneKitView(controller: app.garageScene)
+            SceneKitView(controller: app.garageScene, fps: 30, thermal: app.thermalLimited)
                 .ignoresSafeArea()
             Color(red: 8 / 255, green: 10 / 255, blue: 16 / 255).opacity(0.55)
                 .ignoresSafeArea()

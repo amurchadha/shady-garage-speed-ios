@@ -11,6 +11,7 @@
 		0E881E0E27E8FC50B727B4A7 /* ShadyGarageSpeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */; };
 		452F68CAB5E6C3D916B4111A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93796F6CD0BB7CB205280E5 /* SetupView.swift */; };
 		453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004507589C62AC0B83C69A01 /* LadderSheet.swift */; };
+		4D6E3AD33AE1C47F97623D85 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33078A13FE42E1C4060A0E0F /* Assets.xcassets */; };
 		4FB38999747613F6C55EB702 /* BuildScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA66619143939B397757AA2 /* BuildScene.swift */; };
 		59101F89C848DEE58470911F /* SceneKit+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46BDDD67CAFAAEEE3A8308D /* SceneKit+Helpers.swift */; };
 		59DF343A06A3D4513A43E057 /* SceneKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */; };
@@ -44,6 +45,7 @@
 /* Begin PBXFileReference section */
 		004507589C62AC0B83C69A01 /* LadderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderSheet.swift; sourceTree = "<group>"; };
 		28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ShadyGarageSpeed.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		33078A13FE42E1C4060A0E0F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		459D2610E8DE449ABE9064FC /* GarageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScene.swift; sourceTree = "<group>"; };
 		45E1A61685DCDB9414B9F918 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 		58B44BF7906FFA6093EB3E32 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
@@ -59,6 +61,7 @@
 		B37C45FDB8489AF19C8B161F /* BuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildView.swift; sourceTree = "<group>"; };
 		B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedUITests.swift; sourceTree = "<group>"; };
 		C5C43E9D0AEDB0DC640ABCC3 /* StealMinigameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StealMinigameView.swift; sourceTree = "<group>"; };
+		D1D248B685BC088200F0EDA5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D6C53723B204C05D7AABF1C4 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
 		DC054D87C37CF71468D8AE89 /* GamePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePhase.swift; sourceTree = "<group>"; };
 		E10643CED316BCBF83ABB389 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
@@ -107,10 +110,12 @@
 			isa = PBXGroup;
 			children = (
 				7A59B051281AC8B52D24E1E6 /* AppState.swift */,
+				33078A13FE42E1C4060A0E0F /* Assets.xcassets */,
 				E10643CED316BCBF83ABB389 /* AudioEngine.swift */,
 				DC054D87C37CF71468D8AE89 /* GamePhase.swift */,
 				D6C53723B204C05D7AABF1C4 /* GameState.swift */,
 				8A6AA1BE9E87CF2737251E1F /* Haptics.swift */,
+				D1D248B685BC088200F0EDA5 /* Info.plist */,
 				B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */,
 				A1794CFE4838D2EFB66AD1CF /* SceneKit */,
 				26C63ABC031D42A0D81D4531 /* Views */,
@@ -165,6 +170,7 @@
 			buildConfigurationList = 44CB7581BA52C4D1EEB4C0F9 /* Build configuration list for PBXNativeTarget "ShadyGarageSpeed" */;
 			buildPhases = (
 				BEEC992317D77F9AF3E9C0AF /* Sources */,
+				28DB130C3A016FCF69C39438 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -210,6 +216,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		28DB130C3A016FCF69C39438 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D6E3AD33AE1C47F97623D85 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		BEEC992317D77F9AF3E9C0AF /* Sources */ = {
@@ -288,8 +305,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShadyGarageSpeed/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad" = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -334,8 +351,8 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShadyGarageSpeed/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations~ipad" = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
