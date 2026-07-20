@@ -176,13 +176,28 @@ final class BuildScene: SceneController {
     func sellPart(_ id: String) {
         guard let idx = game.inventory.firstIndex(where: { $0.id == id }) else { return }
         let part = game.inventory[idx]
-        let price = Int((Double(game.partSellPrice(part.tier)) * game.sellMult).rounded())
+        let price = game.fencePrice(part) // demand-scaled fence price
         game.inventory.remove(at: idx)
         game.cash += price
+        if part.stolenDay == game.day {
+            game.heat = min(100, game.heat + 5) // hot parts draw attention
+            toasts.push("Fence moved a hot part… +5 Heat", .warn)
+        }
         game.save()
         refreshCustomCar()
         sfx.cash()
         toasts.push("Sold \(GameState.partLabels[part.type] ?? part.type) +$\(price)", .good)
+    }
+
+    /// Contracts board: hand over the lowest matching part, collect the reward.
+    func fulfillContract() {
+        guard let reward = game.fulfillContract() else {
+            toasts.push("No matching part in inventory", .bad)
+            sfx.fail()
+            return
+        }
+        sfx.cash()
+        toasts.push("Contract fulfilled! +$\(reward)", .good)
     }
 
     /// Parts Catalog: buy a brand-new part (tiers 2–4) straight into inventory.

@@ -57,6 +57,41 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         return false
     }
 
+    /// contracts board: a seeded Pro Engine order plus seeded tier-3 parts →
+    /// Fulfill consumes the lowest matching part and pays 60·3·2.2 = $396.
+    func testContractFulfill() throws {
+        launch(["-reset", "-seedparts", "-contract", "engine", "3", "-phase", "build"])
+        let fulfill = app.buttons["contract-fulfill"]
+        XCTAssertTrue(fulfill.waitForExistence(timeout: 8))
+        XCTAssertTrue(fulfill.isEnabled)
+        fulfill.tap()
+        XCTAssertTrue(waitLabel(app.staticTexts["build-cash"], contains: "$596", timeout: 3),
+                      "cash should be 200 + 396, got \(app.staticTexts["build-cash"].label)")
+        XCTAssertFalse(app.buttons["contract-fulfill"].exists, "contract should be consumed")
+        XCTAssertFalse(app.buttons["install-5"].exists, "one of the 6 seeded parts should be consumed")
+        XCTAssertTrue(app.buttons["install-0"].exists)
+        shot("contract_fulfilled")
+    }
+
+    /// crew hire: debug cash → hire Dex ($2000) → join toast confirms the perk,
+    /// the Hire button becomes HIRED ✓, cash drops to $1000.
+    func testCrewHire() throws {
+        launch(["-reset", "-cash", "3000", "-phase", "garage"])
+        let crew = app.buttons["nav-crew"]
+        XCTAssertTrue(crew.waitForExistence(timeout: 8))
+        crew.tap()
+        let hire = app.buttons["hire-2"] // Dex — $2000
+        XCTAssertTrue(hire.waitForExistence(timeout: 5))
+        XCTAssertTrue(hire.isEnabled)
+        hire.tap()
+        XCTAssertTrue(app.staticTexts["Dex joined the crew! +$25 per Fix"].waitForExistence(timeout: 3),
+                      "perk toast should confirm the hire")
+        XCTAssertFalse(hire.exists, "Hire button should become HIRED ✓")
+        XCTAssertTrue(waitLabel(app.staticTexts["hud-cash"], contains: "$1,000", timeout: 3),
+                      "cash should count down to 1000, got \(app.staticTexts["hud-cash"].label)")
+        shot("crew_hired")
+    }
+
     /// menu → setup → garage: fix a worn part, steal a part via the minigame, finish the job.
     func testGarageLoop() throws {
         launch(["-reset", "-phase", "setup"])

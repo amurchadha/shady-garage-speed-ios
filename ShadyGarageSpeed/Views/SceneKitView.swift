@@ -33,6 +33,7 @@ struct SceneKitView: UIViewRepresentable {
         v.antialiasingMode = thermal ? .none : .multisampling4X
         v.preferredFramesPerSecond = thermal ? 30 : fps
         v.allowsCameraControl = false
+        controller.scnView = v // for world→screen projection (speech bubbles)
         if onTap != nil {
             let tap = UITapGestureRecognizer(target: context.coordinator,
                                              action: #selector(Coordinator.handleTap(_:)))

@@ -124,6 +124,8 @@ class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
     let scene = SCNScene()
     let cameraNode = SCNNode()
     private var lastTime: TimeInterval = 0
+    /// The SCNView rendering this scene (set by SceneKitView) — for screen projection.
+    weak var scnView: SCNView?
 
     /// scenePhase lifecycle freeze (app backgrounded).
     var appActive = true {

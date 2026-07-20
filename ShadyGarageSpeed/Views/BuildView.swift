@@ -77,6 +77,33 @@ struct BuildView: View {
                         StatBar(name: "Handling", value: game.computeStats().handling)
                     }
 
+                    // contracts board: one active order at a time
+                    if let c = game.contract {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("📜 Contract")
+                                    .font(.system(size: 12, weight: .black))
+                                Text("\(GameState.tierNames[c.minTier]) \(GameState.partLabels[c.type] ?? c.type) · by Day \(c.deadline)")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(Color.sgsMuted)
+                                Text("Reward: $\(c.reward)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Color.sgsGood)
+                            }
+                            Spacer()
+                            SGSButton(title: "Fulfill", small: true,
+                                      disabled: !game.inventory.contains { $0.type == c.type && $0.tier >= c.minTier },
+                                      a11y: "contract-fulfill") {
+                                scene.fulfillContract()
+                            }
+                        }
+                        .padding(10)
+                        .background(Color.sgsCard2)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("contract-card")
+                    }
+
                     let L = game.car.chassis
                     let cost = game.chassisCost(L)
                     HStack {
@@ -154,19 +181,31 @@ struct BuildView: View {
     }
 
     private func invCard(_ part: Part, index: Int) -> some View {
-        let price = Int((Double(game.partSellPrice(part.tier)) * game.sellMult).rounded())
+        let price = game.fencePrice(part)
+        let d = game.demand(part.type, day: game.day)
+        let arrow = d > 1.05 ? "▲" : d < 0.95 ? "▼" : ""
+        let hot = part.stolenDay == game.day
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(GameState.partIcons[part.type] ?? "")
                     .font(.system(size: 20))
                 TierBadge(tier: part.tier)
+                if hot {
+                    Text("HOT")
+                        .font(.system(size: 9, weight: .black))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.sgsBad.opacity(0.25))
+                        .foregroundStyle(Color.sgsBad)
+                        .clipShape(Capsule())
+                }
                 Spacer()
             }
             Text(GameState.partLabels[part.type] ?? part.type)
                 .font(.system(size: 13, weight: .bold))
             HStack(spacing: 6) {
                 SGSButton(title: "Install", tiny: true, a11y: "install-\(index)") { scene.installPart(part.id) }
-                SGSButton(title: "Sell $\(price)", ghost: true, tiny: true, a11y: "sell-\(index)") { scene.sellPart(part.id) }
+                SGSButton(title: "Sell $\(price)\(arrow.isEmpty ? "" : " \(arrow)")", ghost: true, tiny: true, a11y: "sell-\(index)") { scene.sellPart(part.id) }
             }
         }
         .padding(10)

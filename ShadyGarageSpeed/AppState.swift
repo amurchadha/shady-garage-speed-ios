@@ -14,6 +14,7 @@ struct Toast: Identifiable, Equatable {
 
 final class ToastCenter: ObservableObject {
     @Published private(set) var toasts: [Toast] = []
+    @Published private(set) var cashPops: [Toast] = [] // floating "+$X" juice
 
     func push(_ text: String, _ kind: Toast.Kind = .info) {
         if Thread.isMainThread {
@@ -29,6 +30,23 @@ final class ToastCenter: ObservableObject {
         while toasts.count > 5 { toasts.removeFirst() }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
             self?.toasts.removeAll { $0.id == t.id }
+        }
+    }
+
+    func pushCash(_ text: String, negative: Bool = false) {
+        if Thread.isMainThread {
+            emitCash(text, negative)
+        } else {
+            DispatchQueue.main.async { self.emitCash(text, negative) }
+        }
+    }
+
+    private func emitCash(_ text: String, _ negative: Bool) {
+        let t = Toast(text: text, kind: negative ? .bad : .good)
+        cashPops.append(t)
+        while cashPops.count > 3 { cashPops.removeFirst() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.cashPops.removeAll { $0.id == t.id }
         }
     }
 }
@@ -194,6 +212,18 @@ final class AppState: ObservableObject {
             game.heat = min(100, max(0, h))
             game.save() // persist so a relaunch sees the same heat
         }
+        if let i = args.firstIndex(of: "-cash"), i + 1 < args.count,
+           let c = Int(args[i + 1]) {
+            game.cash = max(0, c)
+            game.save()
+        }
+        // -contract <type> <minTier>: seed an active contracts-board order (tests)
+        if let i = args.firstIndex(of: "-contract"), i + 2 < args.count,
+           let tier = Int(args[i + 2]) {
+            game.contract = Contract(type: args[i + 1], minTier: tier, deadline: game.day + 3,
+                                     reward: Int((60.0 * Double(tier) * 2.2).rounded()))
+            game.save()
+        }
         if let i = args.firstIndex(of: "-arch"), i + 1 < args.count {
             game.forcedArchetype = args[i + 1]
         }
@@ -209,6 +239,10 @@ final class AppState: ObservableObject {
         // -paused: freeze the race at the countdown for pause-overlay screenshots
         if args.contains("-paused"), phase == .race {
             raceScene.setPaused(true)
+        }
+        // -lugnut: show the Daily Lugnut card immediately (screenshots)
+        if args.contains("-lugnut") {
+            garageScene.debugLugnut()
         }
     }
 }

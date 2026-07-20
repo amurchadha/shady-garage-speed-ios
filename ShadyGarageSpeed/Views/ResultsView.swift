@@ -33,6 +33,10 @@ struct ResultsView: View {
                             .font(.title2.bold())
                             .foregroundStyle(ch.win ? Color.sgsGood : Color.sgsBad)
                             .accessibilityIdentifier("results-pinkslip")
+                        Text(taunt(for: ch))
+                            .font(.system(size: 13))
+                            .italic()
+                            .foregroundStyle(Color.sgsMuted)
                     } else {
                         Text("🏁 Lap Complete!")
                             .font(.title2.bold())
@@ -92,6 +96,14 @@ struct ResultsView: View {
                 .monospacedDigit()
                 .foregroundStyle(color)
         }
+    }
+
+    /// Rival taunt on the results sheet (win/lose variants, alternating).
+    private func taunt(for ch: ChallengeResult) -> String {
+        let winLines = ["\"Hm. Not bad, kid. Take her.\"", "\"You got lucky. Enjoy it while it lasts.\""]
+        let loseLines = ["\"Come back when you learn to drive.\"", "\"That all you got?\""]
+        let lines = ch.win ? winLines : loseLines
+        return lines[app.game.raceCount % lines.count] + " — \(ch.name)"
     }
 
     /// One-time 🏆 STREET LEGEND card (swaps into the results sheet).

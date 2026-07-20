@@ -8,6 +8,15 @@ struct Part: Codable, Equatable, Identifiable {
     var id: String
     var type: String   // engine | turbo | exhaust | tires | suspension | bodykit
     var tier: Int      // 1..4
+    var stolenDay: Int? = nil // set when fenced goods were stolen today (hot)
+}
+
+/// Contracts board: a typed part order with a deadline (day) and cash reward.
+struct Contract: Codable, Equatable {
+    var type: String
+    var minTier: Int
+    var deadline: Int
+    var reward: Int
 }
 
 struct CarParts: Codable, Equatable {
@@ -94,6 +103,11 @@ final class GameState: ObservableObject {
     var heatHintShown = false
     var copHintShown = false
 
+    /// Contracts board: active contract (offered every 3rd day advance if none).
+    @Published var contract: Contract? = nil
+    /// Hired crew (friend indices); perks apply from chosen character OR crew.
+    @Published var crew: [Int] = []
+
     // MARK: constants (exact match with web data.js)
 
     static let tierNames = ["", "Stock", "Sport", "Pro", "Elite"]
@@ -151,12 +165,26 @@ final class GameState: ObservableObject {
         return "id\(uidCounter)_\(Int.random(in: 0..<1_000_000))"
     }
 
-    // MARK: perks
+    // MARK: perks (chosen character OR hired crew)
 
-    var payMult: Double  { characterIndex == 0 ? 1.30 : 1 }
-    var suspMult: Double { characterIndex == 1 ? 0.75 : 1 }
-    var fixBonus: Int    { characterIndex == 2 ? 25 : 0 }
-    var sellMult: Double { characterIndex == 3 ? 1.25 : 1 }
+    var payMult: Double  { characterIndex == 0 || crew.contains(0) ? 1.30 : 1 }
+    var suspMult: Double { characterIndex == 1 || crew.contains(1) ? 0.75 : 1 }
+    var fixBonus: Int    { characterIndex == 2 || crew.contains(2) ? 25 : 0 }
+    var sellMult: Double { characterIndex == 3 || crew.contains(3) ? 1.25 : 1 }
+
+    /// One-time hire prices per friend index (Rex 800 / Mia 800 / Dex 2000 / Zara 5000).
+    static let crewPrices = [800, 800, 2000, 5000]
+
+    @discardableResult
+    func hireCrew(_ i: Int) -> Bool {
+        guard GameState.friends.indices.contains(i), i != characterIndex, !crew.contains(i) else { return false }
+        let price = GameState.crewPrices[i]
+        guard cash >= price else { return false }
+        cash -= price
+        crew.append(i)
+        save()
+        return true
+    }
 
     // MARK: economy
 
@@ -167,7 +195,50 @@ final class GameState: ObservableObject {
         let costs = [1: 250, 2: 500, 3: 900]
         return costs[L]
     }
-    func partSellPrice(_ tier: Int) -> Int { 60 * tier }
+
+    /// The fence: deterministic daily demand per part type in [0.6, 1.6]
+    /// (FNV-1a hash of type+day — same for everyone, re-rolls daily).
+    func demand(_ type: String, day: Int) -> Double {
+        var h: UInt64 = 1469598103934665603
+        for b in (type + "#\(day)").utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
+        return 0.6 + Double(h % 1000) / 1000
+    }
+
+    /// Sell price: 60/tier × today's demand × sell perk. Parts stolen TODAY
+    /// are hot — selling them adds +5 heat (handled at the sale site).
+    func fencePrice(_ part: Part) -> Int {
+        Int((Double(60 * part.tier) * demand(part.type, day: day) * sellMult).rounded())
+    }
+
+    // MARK: contracts board
+
+    /// Every day advance: expire past-deadline contracts; offer a new one every
+    /// 3rd day when none is active (minTier 2–4, deadline day+3, reward 60·tier·2.2).
+    func advanceDay() {
+        day += 1
+        if let c = contract, day > c.deadline { contract = nil }
+        if day % 3 == 0, contract == nil {
+            let type = GameState.partTypes.randomElement()!
+            let minTier = Int.random(in: 2...4)
+            contract = Contract(type: type, minTier: minTier, deadline: day + 3,
+                                reward: Int((60.0 * Double(minTier) * 2.2).rounded()))
+        }
+    }
+
+    /// Consume the lowest-tier matching part in inventory; pay the reward.
+    /// Returns the reward on success.
+    @discardableResult
+    func fulfillContract() -> Int? {
+        guard let c = contract else { return nil }
+        let match = inventory.filter { $0.type == c.type && $0.tier >= c.minTier }
+            .sorted { $0.tier < $1.tier }.first
+        guard let part = match, let idx = inventory.firstIndex(where: { $0.id == part.id }) else { return nil }
+        inventory.remove(at: idx)
+        cash += c.reward
+        contract = nil
+        save()
+        return c.reward
+    }
 
     func computeStats() -> Stats {
         let L = car.chassis
@@ -286,6 +357,8 @@ final class GameState: ObservableObject {
         legend = false
         heatHintShown = false
         copHintShown = false
+        contract = nil
+        crew = []
         save()
     }
 
@@ -303,7 +376,8 @@ final class GameState: ObservableObject {
             inventory: inventory, car: car, bestLap: bestLap, carValue: carValue,
             customersServed: customersServed, suspicion: suspicion, heat: heat,
             raceCount: raceCount, ladder: ladder, legend: legend,
-            heatHintShown: heatHintShown, copHintShown: copHintShown)
+            heatHintShown: heatHintShown, copHintShown: copHintShown,
+            contract: contract, crew: crew)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -351,6 +425,8 @@ final class GameState: ObservableObject {
         legend = (raw.legend ?? false) || ladder >= 4
         heatHintShown = raw.heatHintShown ?? false
         copHintShown = raw.copHintShown ?? false
+        contract = raw.contract
+        crew = raw.crew ?? []
     }
 }
 
@@ -373,6 +449,8 @@ struct SaveData: Codable {
     var legend: Bool
     var heatHintShown: Bool
     var copHintShown: Bool
+    var contract: Contract?
+    var crew: [Int]
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -393,6 +471,8 @@ struct RawSave: Codable {
     var legend: Bool?
     var heatHintShown: Bool?
     var copHintShown: Bool?
+    var contract: Contract?
+    var crew: [Int]?
 }
 
 struct RawCar: Codable {

@@ -179,6 +179,9 @@ final class RaceScene: SceneController {
     private var publishT: Double = 0
     private var wheels: [SCNNode] = [] // tire0..3, front two steer
     private var wheelSpin: Float = 0
+    /// Pink-slip ghost: translucent rival car pacing the target lap time.
+    private var ghost: SCNNode?
+    private var ghostTime: Double = 0
 
     init(game: GameState, toasts: ToastCenter) {
         self.game = game
@@ -593,6 +596,8 @@ final class RaceScene: SceneController {
 
     func startRun() {
         carMesh?.removeFromParentNode()
+        ghost?.removeFromParentNode()
+        ghost = nil
         applyConditions()
         let car = CarFactory.makeCustomCar(carState: game.car)
         scene.rootNode.addChildNode(car)
@@ -639,6 +644,16 @@ final class RaceScene: SceneController {
         // state reset under the lock: the render thread may still be reading
         // these (e.g. Race Again during the finish roll)
         stateLock.lock()
+        // pink-slip ghost: paces the rival's lap time along the centerline
+        if let ci = challengeIndex, let rival = GameState.ladderRival(ci) {
+            let g = CarFactory.makeCar(color: 0x22d3ee)
+            g.opacity = 0.45
+            g.position = SCNVector3(centers[0].x, 0, centers[0].y)
+            g.eulerAngles = SCNVector3(0, startYaw, 0)
+            scene.rootNode.addChildNode(g)
+            ghost = g
+            ghostTime = rival.time
+        }
         stats = game.computeStats()
         maxSpd = 26 + Float(stats.speed) * 0.6
         pos = centers[0]
@@ -684,6 +699,8 @@ final class RaceScene: SceneController {
         }
         setPhaseLocked(.idle)
         boosting = false
+        ghost?.removeFromParentNode()
+        ghost = nil
         stateLock.unlock()
         sfx.nos(false)
         Haptics.nosRumble(false)
@@ -697,6 +714,8 @@ final class RaceScene: SceneController {
         stateLock.lock()
         setPhaseLocked(.idle)
         boosting = false
+        ghost?.removeFromParentNode()
+        ghost = nil
         stateLock.unlock()
         sfx.nos(false)
         Haptics.nosRumble(false)
@@ -742,6 +761,8 @@ final class RaceScene: SceneController {
         finishT = 0
         finishFired = false
         boosting = false
+        ghost?.removeFromParentNode() // ghost stops at the line
+        ghost = nil
         sfx.nos(false)
         Haptics.nosRumble(false)
         sfx.engineSound(false)
@@ -768,7 +789,7 @@ final class RaceScene: SceneController {
         }
         finishData = FinishData(lap: lap, best: best, value: value, reward: reward,
                                 newBest: newBest, challenge: challengeResult)
-        sfx.success()
+        if newBest { sfx.fanfare() } else { sfx.success() } // arpeggio on a new best
         Haptics.notify(.success)
 
         DispatchQueue.main.async { [game, toasts] in
@@ -975,6 +996,18 @@ final class RaceScene: SceneController {
             if frac > 0.45 && frac < 0.55 && movingForward { passedMid = true }
             if lastFrac > 0.9 && frac < 0.1 && passedMid && raceT > 5 { finishLap() }
             lastFrac = frac
+
+            // rival ghost paces the target time (pink-slip only, no collision)
+            if let ghost, ghostTime > 0 {
+                let f = min(1.5, raceT / ghostTime) * Double(Self.SAMPLES)
+                let i0 = Int(f) % Self.SAMPLES
+                let i1 = (i0 + 1) % Self.SAMPLES
+                let fr = Float(f - floor(f))
+                let gp = centers[i0] + (centers[i1] - centers[i0]) * fr
+                ghost.position = SCNVector3(gp.x, 0, gp.y)
+                let gt = tangents[i0]
+                ghost.eulerAngles = SCNVector3(0, atan2(gt.x, gt.y), 0)
+            }
 
             carMesh?.position = SCNVector3(pos.x, 0, pos.y)
             carMesh?.eulerAngles = SCNVector3(0, yaw, 0)

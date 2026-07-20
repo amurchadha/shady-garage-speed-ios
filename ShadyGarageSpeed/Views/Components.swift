@@ -164,6 +164,59 @@ struct HoldButton: View {
     }
 }
 
+// MARK: - speech bubble (owner dialogue)
+
+struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+/// Rounded bubble + tail, positioned over the owner avatar (world-projected).
+struct SpeechBubble: View {
+    let text: String
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(text)
+                .font(.system(size: 13, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color.white)
+                .foregroundStyle(Color(rgb: 0x111827))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+            Triangle()
+                .fill(Color.white)
+                .frame(width: 12, height: 6)
+        }
+        .accessibilityIdentifier("speech-bubble")
+    }
+}
+
+/// Floating "+$X" pop that rises and fades (payment juice).
+struct CashPopView: View {
+    let text: String
+    var negative = false
+    @State private var rise = false
+    var body: some View {
+        Text(text)
+            .font(.system(size: 15, weight: .heavy))
+            .foregroundStyle(negative ? Color.sgsBad : Color.sgsGood)
+            .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
+            .offset(y: rise ? -36 : 0)
+            .opacity(rise ? 0 : 1)
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.1)) { rise = true }
+            }
+    }
+}
+
 // MARK: - toasts
 
 struct ToastOverlay: View {

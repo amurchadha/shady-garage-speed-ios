@@ -69,6 +69,38 @@ final class GarageScene: SceneController {
     @Published private(set) var rushedRemaining: Int? = nil
     static let rushedWindow: Double = 45
 
+    // MARK: speech bubbles (owner dialogue)
+    @Published private(set) var bubbleText: String? = nil
+    @Published private(set) var bubblePos = CGPoint.zero
+    private var bubbleUntil: Double = 0
+    private var bubbleProjT: Double = 0
+    private static let lines: [String: [String]] = [
+        "regular":    ["It's been making a weird noise…", "Can you take a look at it?"],
+        "rushed":     ["Quick — I've got places to be!", "45 seconds, tops. Okay?"],
+        "skeptic":    ["I'll be watching. Closely.", "No funny business, got it?"],
+        "bigspender": ["Best parts only. Money's no object.", "Make it shine, chief."],
+        "glance":     ["Hmm… what are you up to?", "I'm watching you."],
+        "rage":       ["HEY! That's MY part!"],
+        "happy":      ["Pleasure doing business!", "Worth every penny!"],
+    ]
+
+    // MARK: Daily Lugnut tabloid
+    @Published private(set) var lugnut: String? = nil
+    private var dayEvents = Set<String>()
+    private static let headlines: [String: [String]] = [
+        "rage":       ["CUSTOMER STORMS OUT: 'MY PARTS VANISHED!'", "LOCAL GARAGE ACCUSED OF PART SWAP"],
+        "raid":       ["COPS RAID CHOP SHOP — PARTS SEIZED", "CRACKDOWN: GARAGE FINED IN RAID"],
+        "steal":      ["MYSTERY: SPORT PARTS VANISH MID-SERVICE", "RESIDENTS REPORT 'TOO QUICK' MECHANIC"],
+        "rush":       ["SPEEDY SERVICE WINS RAVE REVIEWS", "MECHANIC BEATS THE CLOCK AGAIN"],
+        "bigspender": ["BIG SPENDER SPOTTED AT LOCAL GARAGE", "CASH FLOWS AS HIGH ROLLER PAYS UP"],
+        "clean":      ["HONEST WORK PAYS: GARAGE THRIVES", "NO DRAMA DAY — A RARE EVENT"],
+    ]
+    private static let eventPriority = ["rage", "raid", "steal", "rush", "bigspender", "clean"]
+
+    // MARK: fix moment juice
+    private var flashType: String? = nil
+    private var flashUntil: Double = 0
+
     private struct GStep { var to: SCNVector3; var yaw: Float; var dur: Double }
     private struct Tween {
         var car: SCNNode
@@ -292,6 +324,7 @@ final class GarageScene: SceneController {
         let fine = Int((Double(game.cash) * 0.25).rounded()) // 25% cash fine
         game.cash = max(0, game.cash - fine)
         game.heat = 30
+        dayEvents.insert("raid") // tomorrow's headline is sorted
         game.save()
         sfx.fail()
         Haptics.notify(.error)
@@ -322,6 +355,7 @@ final class GarageScene: SceneController {
         game.heat = max(0, game.heat - 50)
         game.save()
         toasts.push("Bribe paid. The cops wander off. -$200", .warn)
+        toasts.pushCash("-$200", negative: true)
         spawnCustomer()
     }
 
@@ -330,9 +364,10 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         showCopModal = false
         game.heat = max(0, game.heat - 25)
-        game.day += 1
+        game.advanceDay()
         game.save()
         toasts.push("You lay low. The customer drives away.", .warn)
+        publishLugnut()
         startNextCustomer()
     }
 
@@ -374,13 +409,15 @@ final class GarageScene: SceneController {
         ], onDone: { [weak self] in
             guard let self else { return }
             self.inspectStartT = self.elapsed
+            let archetype = c.archetype
             DispatchQueue.main.async {
                 self.jobState = "inspect"
                 self.prompt = "Tap a part on the car, or use the job panel."
-                if self.customer?.archetype == "rushed" {
+                if archetype == "rushed" {
                     self.rushedRemaining = Int(Self.rushedWindow)
                 }
             }
+            self.say(archetype, 3) // arrival line over the owner
         })
     }
 
@@ -390,6 +427,7 @@ final class GarageScene: SceneController {
         jobState = "leaving"
         rushedRemaining = nil
         prompt = happy ? "Another satisfied customer!" : "…"
+        if happy { say("happy", 3) } // happy-exit line over the owner
         clearHighlights()
         selectedPart = nil
         // owner walks off and is removed at the end of the walk
@@ -418,6 +456,8 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         jobState = "angry"
         shakeT = 0.9
+        dayEvents.insert("rage")
+        say("rage", 3)
         sfx.fail()
         prompt = "The customer noticed something!"
         selectedPart = nil
@@ -444,6 +484,34 @@ final class GarageScene: SceneController {
     }
 
     // MARK: - part highlight
+
+    private func say(_ key: String, _ dur: Double) {
+        guard let line = Self.lines[key]?.randomElement() else { return }
+        bubbleUntil = elapsed + dur
+        DispatchQueue.main.async { self.bubbleText = line }
+    }
+
+    private func publishLugnut() {
+        let cat = Self.eventPriority.first(where: { dayEvents.contains($0) }) ?? "clean"
+        dayEvents = []
+        guard let line = Self.headlines[cat]?.randomElement() else { return }
+        DispatchQueue.main.async {
+            self.lugnut = line
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
+                if self?.lugnut == line { self?.lugnut = nil }
+            }
+        }
+    }
+
+    func dismissLugnut() { lugnut = nil }
+
+    /// Debug `-lugnut`: show the tabloid card immediately (screenshots).
+    func debugLugnut() {
+        stateLock.lock()
+        dayEvents = ["steal"]
+        stateLock.unlock()
+        publishLugnut()
+    }
 
     private func cachePartMats() {
         partMats = [:]
@@ -473,8 +541,11 @@ final class GarageScene: SceneController {
     }
 
     private func refreshHighlights() {
+        if elapsed >= flashUntil { flashType = nil }
         for p in GameState.partTypes {
-            if p == selectedPart {
+            if p == flashType {
+                setPartEmissive(p, 0x22c55e, 0.55) // fix moment: green flash
+            } else if p == selectedPart {
                 setPartEmissive(p, 0x22d3ee, 0.35 + 0.15 * CGFloat(sin(elapsed * 7)))
             } else {
                 setPartEmissive(p, 0x000000, 0)
@@ -517,6 +588,9 @@ final class GarageScene: SceneController {
         p.fixed = true
         c.parts[i] = p
         customer = c
+        flashType = p.type // green part flash on the fix moment
+        flashUntil = elapsed + 0.6
+        sfx.ratchet()
         sfx.success()
         toasts.push("Fixed \(GameState.partLabels[p.type] ?? p.type) +$\(amount)", .good)
         game.save()
@@ -541,13 +615,26 @@ final class GarageScene: SceneController {
         if ownerWatching { mult *= 1.5 } // stealing under the owner's nose
         if zone == "red" {
             addSuspicion(35 * mult)
+            game.heat = min(100, game.heat + 3) // red leaves evidence: +3 heat
             toasts.push("Caught fiddling! Suspicion way up.", .bad)
+            // pratfall roulette: 1/3 CAR ALARM (+10 suspicion), else flavor
+            switch Int.random(in: 0..<3) {
+            case 0:
+                addSuspicion(10)
+                toasts.push("🚨 You set off the CAR ALARM!", .bad)
+            case 1:
+                toasts.push("You slipped on an oil slick. Real smooth.", .bad)
+            default:
+                toasts.push("Butterfingers! You dropped the part.", .bad)
+            }
             Haptics.notify(.error)
         } else {
             let tier = p.tier
-            let stolen = game.makePart(p.type, tier)
+            var stolen = game.makePart(p.type, tier)
+            stolen.stolenDay = game.day // hot until tomorrow
             game.inventory.append(stolen)
             stolenThisJob.append(stolen.id)
+            dayEvents.insert("steal")
             p.tier = 1
             p.needsService = false
             p.fixed = true
@@ -590,12 +677,19 @@ final class GarageScene: SceneController {
         let payment = Int((Double(jobTotal) * game.payMult * game.archPayMult(c.archetype, onTime: onTime)).rounded())
         game.cash += payment
         game.customersServed += 1
-        game.day += 1
+        game.advanceDay()
+        if c.archetype == "rushed" && onTime { dayEvents.insert("rush") }
+        if c.archetype == "bigspender" { dayEvents.insert("bigspender") }
+        if jobSteals == 0 {
+            game.heat = max(0, game.heat - 8) // clean job cools things down
+            dayEvents.insert("clean")
+        }
         game.suspicion = 0
-        if jobSteals == 0 { game.heat = max(0, game.heat - 8) } // clean job cools things down
         game.save()
         sfx.cash()
         toasts.push("Job done! +$\(payment)", .good)
+        toasts.pushCash("+$\(payment)") // floating cash pop
+        publishLugnut()
         driveOut(true)
     }
 
@@ -689,12 +783,28 @@ final class GarageScene: SceneController {
             if elapsed >= nextWatchT {
                 watchUntilT = elapsed + 2
                 nextWatchT = elapsed + Double.random(in: 4...8)
+                say("glance", 2) // glance line as they start watching
             }
             watching = elapsed < watchUntilT
         }
         if forceWatch { watching = owner != nil && mode == .play && jobState == "inspect" }
         if watching != ownerWatching {
             DispatchQueue.main.async { self.ownerWatching = watching }
+        }
+
+        // speech bubble: project the owner's head to screen space (15Hz) + expiry
+        bubbleProjT += dt
+        if bubbleProjT >= 1.0 / 15 {
+            bubbleProjT = 0
+            if bubbleText != nil, let owner, let v = scnView {
+                // iOS projectPoint already returns VIEW points (not pixels)
+                let p = v.projectPoint(SCNVector3(owner.position.x, 2.05, owner.position.z))
+                let pt = CGPoint(x: CGFloat(p.x), y: CGFloat(p.y))
+                DispatchQueue.main.async { self.bubblePos = pt }
+            }
+        }
+        if bubbleText != nil && elapsed > bubbleUntil {
+            DispatchQueue.main.async { self.bubbleText = nil }
         }
 
         // owner idle: bob like the friends + an occasional phone-look head tilt
@@ -737,10 +847,11 @@ final class GarageScene: SceneController {
                 car.position.x = 0
                 owner?.position.x = 2.4
                 DispatchQueue.main.async {
-                    self.game.day += 1
+                    self.game.advanceDay()
                     self.game.suspicion = 0
                     self.game.save()
                     self.toasts.push("Customer left furious! No pay.", .bad)
+                    self.publishLugnut()
                     self.driveOut(false)
                 }
             }

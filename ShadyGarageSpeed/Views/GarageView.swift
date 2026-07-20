@@ -10,6 +10,11 @@ struct GarageView: View {
     @ObservedObject private var audio = AudioEngine.shared
     /// Debug launch arg `-laddersheet` opens the rival ladder directly (screenshots).
     @State private var showLadder = ProcessInfo.processInfo.arguments.contains("-laddersheet")
+    /// Debug launch arg `-crewsheet` opens the hire sheet directly (screenshots).
+    @State private var showCrew = ProcessInfo.processInfo.arguments.contains("-crewsheet")
+    /// Cash count-up tween state (juice): shownCash chases game.cash.
+    @State private var shownCash = 0
+    @State private var cashTimer: Timer?
 
     var body: some View {
         GeometryReader { geo in
@@ -63,20 +68,71 @@ struct GarageView: View {
                 if let idx = scene.pendingStealIndex, let c = scene.customer, c.parts.indices.contains(idx) {
                     StealMinigameView(
                         title: "Swap the \((GameState.partLabels[c.parts[idx].type] ?? "part").lowercased())…",
+                        tier: c.parts[idx].tier, heat: game.heat,
                         onResolve: { zone in scene.resolveSteal(zone) }
                     )
                 }
+
+                // speech bubble over the owner avatar (world-projected position)
+                if let bubble = scene.bubbleText {
+                    SpeechBubble(text: bubble)
+                        .position(x: scene.bubblePos.x, y: scene.bubblePos.y - 28)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.25), value: scene.bubbleText)
+                        .allowsHitTesting(false)
+                }
+
+                // Daily Lugnut tabloid card (tap or 3.5s to dismiss; non-blocking)
+                if let headline = scene.lugnut {
+                    VStack(spacing: 4) {
+                        Text("THE DAILY LUGNUT")
+                            .font(.system(size: 12, weight: .black))
+                            .tracking(2)
+                            .foregroundStyle(Color.sgsBad)
+                        Text(headline)
+                            .font(.system(size: 13, weight: .bold))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color(rgb: 0xf5f0e6))
+                    .foregroundStyle(Color(rgb: 0x1f2937))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                    .rotationEffect(.degrees(-1.5))
+                    .padding(.top, 92)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .onTapGesture { scene.dismissLugnut() }
+                    .accessibilityIdentifier("lugnut-card")
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                // floating "+$X" cash pops near the cash readout
+                HStack(spacing: 6) {
+                    ForEach(app.toasts.cashPops) { t in
+                        CashPopView(text: t.text, negative: t.kind == .bad)
+                    }
+                }
+                .padding(.leading, 120)
+                .padding(.top, 64)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .allowsHitTesting(false)
             }
             .onAppear {
                 // NOTE: enterPlay is owned by AppState (single source) — calling it
                 // here too used to double-enter and could spawn a ghost customer car.
                 scene.portraitFraming = geo.size.height > geo.size.width
+                shownCash = game.cash
             }
             .onChange(of: geo.size) { _, newSize in
                 scene.portraitFraming = newSize.height > newSize.width
             }
+            .onChange(of: game.cash) { _, v in stepCash(to: v) }
             .sheet(isPresented: $showLadder) {
                 LadderSheet(game: game)
+            }
+            .sheet(isPresented: $showCrew) {
+                HireSheet(game: game)
             }
             .sheet(isPresented: Binding(get: { scene.showCopModal },
                                         set: { scene.showCopModal = $0 })) {
@@ -90,24 +146,39 @@ struct GarageView: View {
 
     // MARK: topbar
 
+    /// Cash count-up tween: shownCash chases game.cash at ~30Hz (juice).
+    private func stepCash(to v: Int) {
+        cashTimer?.invalidate()
+        cashTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { t in
+            let diff = v - shownCash
+            if diff == 0 {
+                t.invalidate()
+                cashTimer = nil
+                return
+            }
+            let s = max(1, abs(diff) / 4)
+            shownCash = abs(diff) <= s ? v : shownCash + (diff > 0 ? s : -s)
+        }
+    }
+
     private func topbar(narrow: Bool) -> some View {
         Panel {
             if narrow {
-                // portrait phones: two rows (web .topbar wraps the same way)
+                // portrait phones: three rows (web .topbar wraps the same way)
                 VStack(spacing: 8) {
                     HStack(spacing: 10) {
                         Text("📅 Day \(game.day)")
                             .font(.system(size: 13, weight: .semibold))
                             .fixedSize()
                             .accessibilityIdentifier("hud-day")
-                        Text("💰 $\(game.cash)")
+                        Text("💰 $\(shownCash)")
                             .font(.system(size: 13, weight: .semibold))
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
                         Spacer()
-                        SGSButton(title: "Build", small: true, a11y: "nav-build",
+                        SGSButton(title: "", small: true, a11y: "nav-build",
                                   systemImage: "wrench.fill") { app.goBuild() }
-                        SGSButton(title: "Race", small: true, a11y: "nav-race",
+                        SGSButton(title: "", small: true, a11y: "nav-race",
                                   systemImage: "flag.checkered") { app.goRace() }
                     }
                     HStack(spacing: 14) {
@@ -117,12 +188,18 @@ struct GarageView: View {
                               barWidth: 64, a11y: "hud-suspicion")
                         meter("Heat", value: game.heat,
                               color: Color(rgb: 0xf97316), barWidth: 64, a11y: "hud-heat")
+                        Spacer()
+                    }
+                    HStack(spacing: 14) {
+                        Spacer()
                         SGSButton(title: "", small: true, a11y: "nav-menu",
                                   systemImage: "house.fill") { app.goMenu() }
                         SGSButton(title: "", small: true, a11y: "mute-toggle",
                                   systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
                         SGSButton(title: "", small: true, a11y: "nav-ladder",
                                   systemImage: "trophy.fill") { showLadder = true }
+                        SGSButton(title: "", small: true, a11y: "nav-crew",
+                                  systemImage: "person.2.fill") { showCrew = true }
                         Spacer()
                     }
                 }
@@ -132,7 +209,7 @@ struct GarageView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .fixedSize()
                         .accessibilityIdentifier("hud-day")
-                    Text("💰 $\(game.cash)")
+                    Text("💰 $\(shownCash)")
                         .font(.system(size: 14, weight: .semibold))
                         .fixedSize()
                         .accessibilityIdentifier("hud-cash")
@@ -147,6 +224,8 @@ struct GarageView: View {
                               systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
                     SGSButton(title: "Ladder", small: true, a11y: "nav-ladder",
                               systemImage: "trophy.fill") { showLadder = true }
+                    SGSButton(title: "Crew", small: true, a11y: "nav-crew",
+                              systemImage: "person.2.fill") { showCrew = true }
                     SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu",
                               systemImage: "house.fill") { app.goMenu() }
                     SGSButton(title: "Build", small: true, a11y: "nav-build",

@@ -216,6 +216,19 @@ final class AudioEngine: ObservableObject {
             Tone(freq: 784, dur: 0.18, wave: .triangle, vol: 0.12, delay: 0.18),
         ])
         buffers["fail"] = render([Tone(freq: 220, dur: 0.28, wave: .saw, vol: 0.12, slideTo: 110)])
+        // new-best fanfare: ascending C-major arpeggio
+        buffers["fanfare"] = render([
+            Tone(freq: 523, dur: 0.12, wave: .triangle, vol: 0.12),
+            Tone(freq: 659, dur: 0.12, wave: .triangle, vol: 0.12, delay: 0.10),
+            Tone(freq: 784, dur: 0.12, wave: .triangle, vol: 0.12, delay: 0.20),
+            Tone(freq: 1046, dur: 0.32, wave: .triangle, vol: 0.13, delay: 0.30),
+        ])
+        // ratchet ticks for the fix moment
+        buffers["ratchet"] = render([
+            Tone(freq: 1400, dur: 0.03, wave: .square, vol: 0.07),
+            Tone(freq: 1400, dur: 0.03, wave: .square, vol: 0.07, delay: 0.055),
+            Tone(freq: 1400, dur: 0.03, wave: .square, vol: 0.07, delay: 0.11),
+        ])
 
         // NOS: 0.7s attack ramp 120→520Hz with 6Hz ±35 wobble, then steady loop.
         let wobble: (Double) -> Double = { t in 35 * sin(2 * .pi * 6 * t) }
@@ -252,6 +265,8 @@ final class AudioEngine: ObservableObject {
     func cash()    { play("cash") }
     func success() { play("success") }
     func fail()    { play("fail") }
+    func fanfare() { play("fanfare") }
+    func ratchet() { play("ratchet") }
 
     func beep(_ f: Double = 440) {
         lock.lock()

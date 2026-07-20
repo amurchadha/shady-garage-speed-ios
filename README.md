@@ -46,17 +46,16 @@ Xcode know — all sources live under `ShadyGarageSpeed/` and are globbed by Xco
 - **Fix** worn parts for safe cash, or **Steal** them for yourself via the timing minigame —
   watch the **Suspicion** meter (at 100 the customer storms off and takes their parts back)
   and the **Heat** meter (cops visit at ≥70, raid at 100 — half your parts plus a 25% cash fine).
-- Customers come in **archetypes**: ⏱ **Rushed** (finish within 45s for ×1.5 pay),
-  🧐 **Skeptic** (×1.5 suspicion gains, ×1.25 pay), 💰 **Big Spender** (better tiers, ×1.5 pay).
-  The **owner** stands by the bay — when the 👁 chip is up, steals cost ×1.5 suspicion.
-- Spend cash and stolen parts in the **Build Bay**: chassis upgrades, 6 part slots, and a
-  **Parts Catalog** selling brand-new parts (Sport $160 / Pro $420 / Elite $950).
-- Prove it in the **time trial**: day/sunset/night conditions cycle per race, 35% rain chance,
-  NOS boost (watch the lockout when the meter hits empty), best-lap tracking, rival leaderboard.
-- Climb the **🏆 pink-slip ladder** (garage topbar): beat each rival's lap time to win their
-  part + purse — Granny Shift (Sport Tires + $150), Lugnut (Pro Exhaust + $300),
-  Torque Queen (Pro Turbo + $500), Vex (Elite Engine + $1000). Beat all four to become
-  the **Street Legend**.
+- Customers come in **archetypes** (Rushed/Skeptic/BigSpender) and the **owner** chats via
+  speech bubbles while watching your hands. Every day advance prints **THE DAILY LUGNUT**
+  tabloid headline based on what happened (steals, rages, raids, rush bonuses).
+- The **fence** pays more (or less) for each part type daily — watch the ▲/▼ demand marks;
+  parts stolen the same day are **HOT** (+5 heat to sell). The **contracts board** posts a
+  part order every 3rd day — hand over a matching part for a fat reward.
+- Hire the **crew** (👥 topbar): the unchosen friends sell their perks for a one-time fee.
+- Climb the **🏆 pink-slip ladder** (garage topbar): beat each rival's lap time — their
+  translucent **ghost** paces them on track — to win their part + purse and become the
+  **Street Legend**.
 - 🔊/🔇 button (garage topbar + race HUD) mutes all audio; the setting persists.
 
 ## Feature map (web → iOS)
@@ -123,8 +122,12 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-watch` / `-nowatch` — pin the owner's watching state on / disable the watch cycle.
 - `-paused` — the race opens already paused (pause-overlay screenshots).
 - `-heat N` — set the Heat meter (persisted, so a relaunch keeps it).
+- `-cash N` — set cash (deterministic economy tests).
+- `-contract <type> <minTier>` — seed an active contracts-board order.
 - `-cop` — every heat ≥70 arrival triggers a cop visit (deterministic cop-flow tests).
 - `-debughud` — show a live customer-car node count under the prompt (ghost-car regression hook).
+- `-lugnut` — show the Daily Lugnut card immediately.
+- `-crewsheet` — garage opens with the crew hire sheet up.
 - `-reset` — wipe the `sgs_save` UserDefaults save on launch (fresh state; used by UI tests).
 - `-seedparts` — seed the inventory with one tier-3 part of each type (deterministic build-bay tests).
 
@@ -132,7 +135,10 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 
 A UI-testing target (`ShadyGarageSpeedUITests`) drives the real app end-to-end:
 garage loop (fix → steal → finish), build bay (install raises Speed), Parts Catalog
-(buy a Sport engine → cash drops, part lands in inventory), race (GAS → speed > 0 → forfeit),
+(buy a Sport engine → cash drops, part lands in inventory), contracts board
+(`-seedparts -contract engine 3` → Fulfill pays $396 and consumes the part),
+crew hire (`-cash 3000` → hire Dex → perk toast + HIRED ✓ + cash drops),
+race (GAS → speed > 0 → forfeit),
 suspicion persistence (steal → kill app → relaunch → suspicion is 0),
 Skeptic archetype suspicion math (red-zone steal → 35 × 1.5 = 53, via `-arch skeptic -mgzone red -nowatch`),
 the pink-slip ladder (`-ladderwin -instantfinish` → challenge Granny → WIN header, ladder row ✓, prize in inventory),
@@ -156,9 +162,10 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 `new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`, `nav-ladder`, `nav-menu`,
 `fix-N` / `steal-N` (job rows), `finish-job`, `job-total`, `hud-day`, `hud-cash`,
 `hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
-`arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`,
+`arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`, `speech-bubble`, `lugnut-card`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
 `pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`, `menu-goal`,
+`contract-card`, `contract-fulfill`, `nav-crew`, `crew-close`, `hire-N`, `mg-bar`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
 `catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
 `race-timer`, `race-speed`, `race-pause`, `pause-overlay`, `pause-resume|forfeit|quit`,
@@ -191,6 +198,26 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
   commit (IME-safe) after trimming; suspension lowering now includes exhaust, stripes and
   widebody pods; the minimap's static outline is a cached image (only the player dot
   redraws); the garage topbar has a Menu button.
+
+## Flavor & meta (phase 4)
+
+- **Speech bubbles**: the owner talks — arrival lines per archetype, a glance line when
+  they start watching, rage/happy exits. The bubble is projected from the avatar's world
+  position to screen space each frame (`SCNView.projectPoint` — iOS returns view *points*).
+- **THE DAILY LUGNUT**: a tabloid card on every day advance, headline picked from 12
+  templates by the day's events (steal/rage/rush/raid/bigspender/clean); tap or 3.5s to dismiss.
+- **Rival ghost**: pink-slip races spawn a 0.45-opacity car pacing the rival's lap time
+  along the centerline (`raceT / rivalTime × 800` samples).
+- **The fence**: deterministic daily demand per part type ∈ [0.6, 1.6] (FNV-1a of type+day);
+  ▲/▼ marks in the sell UI; parts stolen the same day are HOT (+5 heat on sale).
+- **Contracts board**: every 3rd day advance offers an order (minTier 2–4, deadline day+3,
+  reward 60·tier·2.2); Fulfill consumes the lowest matching part. Persisted, expires.
+- **Minigame**: green width and marker speed scale with part tier + heat; colorblind-safe
+  patterns (solid/stripes/grid), center notch, triangle marker, ×0.6 under Reduce Motion.
+- **Juice**: cash count-up tween, floating "+$X" pops, rival taunts on results, new-best
+  arpeggio, steal-fail pratfall roulette (CAR ALARM +10 suspicion), fix green flash + ratchet.
+- **Crew hire**: the 3 unchosen friends sell their perks one-time ($800/$2000/$5000);
+  perks apply from chosen character OR crew, persisted.
 
 ## Notes
 

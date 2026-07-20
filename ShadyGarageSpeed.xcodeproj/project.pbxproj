@@ -30,6 +30,7 @@
 		D7A44B98C8D63324A6B28133 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10643CED316BCBF83ABB389 /* AudioEngine.swift */; };
 		DAEBEA559F993B607B89758A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A59B051281AC8B52D24E1E6 /* AppState.swift */; };
 		E57BC40DD9936E725E661F5C /* GamePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC054D87C37CF71468D8AE89 /* GamePhase.swift */; };
+		F2C1204DE6922D67F7D68935 /* HireSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75990D83AD6B474A014C121B /* HireSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +53,7 @@
 		5EA06D343182BF4AC7DA5633 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
 		63A1234F03F09FBBE83276B9 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
 		677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitView.swift; sourceTree = "<group>"; };
+		75990D83AD6B474A014C121B /* HireSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HireSheet.swift; sourceTree = "<group>"; };
 		7A59B051281AC8B52D24E1E6 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		8A6AA1BE9E87CF2737251E1F /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		A004658E16FC9AC44EA805CD /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -78,6 +80,7 @@
 				B37C45FDB8489AF19C8B161F /* BuildView.swift */,
 				A004658E16FC9AC44EA805CD /* Components.swift */,
 				63A1234F03F09FBBE83276B9 /* GarageView.swift */,
+				75990D83AD6B474A014C121B /* HireSheet.swift */,
 				004507589C62AC0B83C69A01 /* LadderSheet.swift */,
 				45E1A61685DCDB9414B9F918 /* MenuView.swift */,
 				5EA06D343182BF4AC7DA5633 /* RaceView.swift */,
@@ -244,6 +247,7 @@
 				07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */,
 				C1FA8B97E66AAA53AEE13A59 /* GarageView.swift in Sources */,
 				93B83F8685CB4D20A5A8484C /* Haptics.swift in Sources */,
+				F2C1204DE6922D67F7D68935 /* HireSheet.swift in Sources */,
 				453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */,
 				CBBD77FE5BAFECBC0BCDC8CA /* MenuView.swift in Sources */,
 				777ECF5B3480A2919A27FD17 /* RaceScene.swift in Sources */,
