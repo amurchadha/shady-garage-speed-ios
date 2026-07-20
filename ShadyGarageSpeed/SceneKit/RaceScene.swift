@@ -32,7 +32,13 @@ final class RaceScene: SceneController {
     static let ROAD_HALF: Float = 8      // road is 16 wide
     static let BARRIER_LAT: Float = 10.5 // soft wall
 
-    // MARK: published HUD state (main thread only)
+    // MARK: run phase (defect fix: owned by the render thread, SwiftUI gets a
+    // read-only mirror — the countdown→GO transition can then fire exactly once)
+    private enum RunPhase { case idle, count, racing, finished }
+    /// Guards `phase`, the input flags, and other state shared main ⇄ render.
+    private let stateLock = NSRecursiveLock()
+    private var phase: RunPhase = .idle
+    /// Read-only mirror of `phase` for SwiftUI/tests. Written on main only.
     @Published private(set) var runPhase = "idle" // idle|count|racing|finished
     @Published private(set) var countdownText: String?
     @Published private(set) var raceTimerText = "00:00.000"
@@ -43,6 +49,19 @@ final class RaceScene: SceneController {
     @Published private(set) var minimapTrack: [CGPoint] = []
     @Published private(set) var minimapStartTick = (CGPoint.zero, CGPoint.zero)
     @Published private(set) var minimapPlayer = CGPoint(x: 0.5, y: 0.5)
+
+    /// Set `phase` + publish the mirror. Call under stateLock.
+    private func setPhaseLocked(_ p: RunPhase) {
+        phase = p
+        let s: String
+        switch p {
+        case .idle: s = "idle"
+        case .count: s = "count"
+        case .racing: s = "racing"
+        case .finished: s = "finished"
+        }
+        DispatchQueue.main.async { self.runPhase = s }
+    }
 
     // inputs (set by RaceView hold buttons)
     var inputUp = false
@@ -122,6 +141,7 @@ final class RaceScene: SceneController {
     private var finishFired = false
     private var finishData: FinishData?
     private var lastIdx = 0
+    private var prevIdx = 0 // for the wrong-way direction check on the mid checkpoint
     private var lastFrac: Double = 0
     private var passedMid = false
     private var offTrack = false
@@ -512,6 +532,10 @@ final class RaceScene: SceneController {
         scene.fogStartDistance = c.fogNear
         scene.fogEndDistance = c.fogFar
 
+        // sky IBL for the PBR materials, scaled per time-of-day (+ rain dim)
+        applySkyEnvironment(scene, intensity: (todIndex == 0 ? 1.0 : todIndex == 1 ? 0.55 : 0.15)
+                                              * (raining ? 0.75 : 1))
+
         hemiLight.intensity = c.hemi * 1000 * (raining ? 0.85 : 1)
         hemiLight.color = UIColor(rgb: c.hemiSky)
         dirLight.intensity = c.sun * 1000
@@ -581,25 +605,29 @@ final class RaceScene: SceneController {
             }
         }
 
+        // state reset under the lock: the render thread may still be reading
+        // these (e.g. Race Again during the finish roll)
+        stateLock.lock()
         stats = game.computeStats()
         maxSpd = 26 + Float(stats.speed) * 0.6
         pos = centers[0]
         yaw = startYaw
         speed = 0
-        lastIdx = 0; lastFrac = 0; passedMid = false
+        lastIdx = 0; prevIdx = 0; lastFrac = 0; passedMid = false
         offTrack = false; wasOff = false
         inputUp = false; inputDown = false; inputLeft = false; inputRight = false; inputNos = false
         nosMeter = 100
         boosting = false
         nosLockout = false
         wallCooldown = 0
-        sfx.engineSound(false) // safety: no stale loop from a previous run
         countT = 0; lastShown = 3; goT = 0
         raceT = 0; finishT = 0; finishFired = false; finishData = nil
         camPos = desiredCamPos()
         camFov = 62
+        setPhaseLocked(.count)
+        stateLock.unlock()
+        sfx.engineSound(false) // safety: no stale loop from a previous run
         DispatchQueue.main.async {
-            self.runPhase = "count"
             self.raceTimerText = "00:00.000"
             self.raceSpeedKmh = 0
             self.nosMeterInt = 100
@@ -615,9 +643,17 @@ final class RaceScene: SceneController {
         cameraNode.camera?.fieldOfView = camFov
     }
 
+    /// Forfeit is only valid during countdown/racing — during the finish roll the
+    /// ✕ must NOT swallow the results screen (defect fix).
     func forfeit() {
-        setPhase("idle")
+        stateLock.lock()
+        guard phase == .count || phase == .racing else {
+            stateLock.unlock()
+            return
+        }
+        setPhaseLocked(.idle)
         boosting = false
+        stateLock.unlock()
         sfx.nos(false)
         sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
@@ -626,20 +662,49 @@ final class RaceScene: SceneController {
     }
 
     func exitRace() {
-        setPhase("idle")
+        stateLock.lock()
+        setPhaseLocked(.idle)
         boosting = false
+        stateLock.unlock()
         sfx.nos(false)
         sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
     }
 
-    private func setPhase(_ p: String) {
-        if Thread.isMainThread { runPhase = p }
-        else { DispatchQueue.main.async { self.runPhase = p } }
+    /// Drop every held input (system touch-cancel, app backgrounding) so gas,
+    /// steer and NOS can't latch with no finger down.
+    func clearInputs() {
+        stateLock.lock()
+        inputUp = false
+        inputDown = false
+        inputLeft = false
+        inputRight = false
+        inputNos = false
+        stateLock.unlock()
+    }
+
+    /// App backgrounding (defect fix): freeze handled by SceneController; here we
+    /// drop inputs and silence the loops, then resume the engine cleanly on return.
+    override func appActiveChanged(_ active: Bool) {
+        if !active {
+            clearInputs()
+            stateLock.lock()
+            boosting = false
+            stateLock.unlock()
+            sfx.nos(false)
+            sfx.engineSound(false)
+        } else {
+            stateLock.lock()
+            let racing = phase == .racing
+            stateLock.unlock()
+            if racing { sfx.engineSound(true) }
+        }
     }
 
     private func finishLap() {
-        setPhase("finished")
+        // Runs on the render thread under stateLock. Render-thread state is set
+        // here; EVERY GameState mutation + save hops to the main thread below.
+        setPhaseLocked(.finished)
         finishT = 0
         finishFired = false
         boosting = false
@@ -649,39 +714,18 @@ final class RaceScene: SceneController {
         let lap = raceT
         let newBest = game.bestLap == nil || lap < game.bestLap!
         let best = newBest ? lap : game.bestLap!
-        if newBest { game.bestLap = lap }
         let sum = stats.speed + stats.accel + stats.handling
         let mult = max(0.5, min(1.8, 22.0 / lap))
         // pink-slip runs pay the rival's prize only — no normal reward (web parity)
         let value = challengeIndex == nil ? Int((Double(sum) * 12 * mult).rounded()) : 0
         let reward = challengeIndex == nil ? Int((Double(value) * 0.12).rounded()) : 0
-        if challengeIndex == nil {
-            game.carValue = value
-            game.cash += reward
-            game.save()
-        }
-        sfx.success()
-        Haptics.notify(.success)
 
-        // pink-slip challenge: win = beat the rival's time; a loss costs nothing
+        // pink-slip resolution — pure computation here; rewards applied on main
         var challengeResult: ChallengeResult? = nil
         if let ci = challengeIndex, let rival = GameState.ladderRival(ci) {
             let target = ladderWin ? 999.0 : rival.time // -ladderwin debug: auto-win
             let win = lap < target
-            var becameLegend = false
-            if win {
-                game.ladder = max(game.ladder, ci + 1)
-                game.inventory.append(game.makePart(rival.prizeType, rival.prizeTier))
-                game.cash += rival.purse
-                if game.ladder >= 4 && !game.legend { becameLegend = true }
-                if game.ladder >= 4 { game.legend = true }
-                game.save()
-                let prizeName = "\(GameState.tierNames[rival.prizeTier]) \(GameState.partLabels[rival.prizeType] ?? rival.prizeType)"
-                toasts.push("Won \(rival.name)'s \(prizeName) + $\(rival.purse)!", .good)
-            } else {
-                game.save() // persist a new bestLap even on a lost challenge
-                toasts.push(String(format: "Lost to %@ by %.2fs", rival.name, lap - target), .bad)
-            }
+            let becameLegend = win && ci + 1 >= 4 && !game.legend && game.ladder < 4
             challengeResult = ChallengeResult(name: rival.name, target: rival.time, win: win,
                                               margin: rival.time - lap, prizeType: rival.prizeType,
                                               prizeTier: rival.prizeTier, purse: rival.purse,
@@ -689,6 +733,29 @@ final class RaceScene: SceneController {
         }
         finishData = FinishData(lap: lap, best: best, value: value, reward: reward,
                                 newBest: newBest, challenge: challengeResult)
+        sfx.success()
+        Haptics.notify(.success)
+
+        DispatchQueue.main.async { [game, toasts] in
+            if newBest { game.bestLap = lap }
+            if challengeResult == nil {
+                game.carValue = value
+                game.cash += reward
+            }
+            if let ci = self.challengeIndex, let ch = challengeResult {
+                if ch.win {
+                    game.ladder = max(game.ladder, ci + 1)
+                    game.inventory.append(game.makePart(ch.prizeType, ch.prizeTier))
+                    game.cash += ch.purse
+                    if game.ladder >= 4 { game.legend = true }
+                    let prizeName = "\(GameState.tierNames[ch.prizeTier]) \(GameState.partLabels[ch.prizeType] ?? ch.prizeType)"
+                    toasts.push("Won \(ch.name)'s \(prizeName) + $\(ch.purse)!", .good)
+                } else {
+                    toasts.push(String(format: "Lost to %@ by %.2fs", ch.name, lap - ch.target), .bad)
+                }
+            }
+            game.save() // persists bestLap/reward/prize in every outcome
+        }
     }
 
     private func nearestIndex(_ p: SIMD2<Float>, _ last: Int) -> Int {
@@ -713,6 +780,8 @@ final class RaceScene: SceneController {
     // MARK: - frame update (render thread)
 
     override func update(dt: TimeInterval) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         // clouds drift
         for ci in clouds.indices {
             clouds[ci].x += clouds[ci].spd * Float(dt)
@@ -732,7 +801,7 @@ final class RaceScene: SceneController {
             }
         }
 
-        if runPhase == "count" {
+        if phase == .count {
             countT += dt
             if countT < 3 {
                 let n = countT < 1 ? 3 : countT < 2 ? 2 : 1
@@ -742,7 +811,8 @@ final class RaceScene: SceneController {
                     sfx.beep(440)
                 }
             } else {
-                setPhase("racing")
+                // render-thread-owned transition → fires exactly once
+                setPhaseLocked(.racing)
                 raceT = 0
                 goT = 0.9
                 DispatchQueue.main.async { self.countdownText = "GO!" }
@@ -751,11 +821,11 @@ final class RaceScene: SceneController {
             }
         }
 
-        if runPhase == "racing" {
+        if phase == .racing {
             raceT += dt
             // debug -instantfinish: force the lap done ~1s after GO (deterministic
-            // tests). finishData != nil guards the one-frame window before the
-            // main-thread phase flip lands.
+            // tests). finishData != nil guards the same-frame window before the
+            // phase flip takes effect next frame.
             if instantFinish && raceT > 1 && finishData == nil {
                 finishLap()
             }
@@ -858,9 +928,14 @@ final class RaceScene: SceneController {
             if offTrack && !wasOff { toasts.push("Off track!", .warn) }
             wasOff = offTrack
 
-            // lap detection: wrap from >90% to <10% of samples, mid checkpoint required
+            // lap detection: wrap from >90% to <10% of samples, mid checkpoint
+            // required — and the checkpoint only arms via FORWARD travel
+            // (index increasing), so wrong-way drivers can't validate a lap
+            let idxDelta = (lastIdx - prevIdx + Self.SAMPLES) % Self.SAMPLES
+            let movingForward = idxDelta > 0 && idxDelta < Self.SAMPLES / 2
+            prevIdx = lastIdx
             let frac = Double(lastIdx) / Double(Self.SAMPLES)
-            if frac > 0.45 && frac < 0.55 { passedMid = true }
+            if frac > 0.45 && frac < 0.55 && movingForward { passedMid = true }
             if lastFrac > 0.9 && frac < 0.1 && passedMid && raceT > 5 { finishLap() }
             lastFrac = frac
 
@@ -874,7 +949,7 @@ final class RaceScene: SceneController {
             }
         }
 
-        if runPhase == "finished", let car = carMesh {
+        if phase == .finished, let car = carMesh {
             // roll to a stop, then hand results to main
             speed -= speed * 1.8 * Float(dt)
             let fx = sin(yaw), fz = cos(yaw)
@@ -901,7 +976,7 @@ final class RaceScene: SceneController {
             camPos.y += (target.y - camPos.y) * Float(k)
             camPos.z += (target.z - camPos.z) * Float(k)
             cameraNode.position = camPos
-            if offTrack && runPhase == "racing" {
+            if offTrack && phase == .racing {
                 cameraNode.position.x += Float((Double.random(in: 0..<1) - 0.5) * 0.16)
                 cameraNode.position.y += Float((Double.random(in: 0..<1) - 0.5) * 0.1)
                 cameraNode.position.z += Float((Double.random(in: 0..<1) - 0.5) * 0.16)
@@ -921,7 +996,7 @@ final class RaceScene: SceneController {
         if publishT >= 1.0 / 30 {
             publishT = 0
             let timerText = Self.fmtTime(raceT)
-            let kmh = Int(abs(speed) * 3.4)
+            let kmh = Int((abs(speed) * 3.4).rounded()) // round, not truncate
             let nos = Int(nosMeter.rounded())
             let playerDot = mapPoint(pos)
             DispatchQueue.main.async {

@@ -46,8 +46,9 @@ struct RaceView: View {
                 .padding(.top, compact ? 2 : 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
-                // minimap, top left
-                minimap
+                // minimap, top left (static outline image cached once per size;
+                // per-frame redraw is just the player dot)
+                minimap(size: mapSize)
                     .frame(width: mapSize, height: mapSize)
                     .background(Color(red: 10 / 255, green: 14 / 255, blue: 20 / 255).opacity(0.55))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -85,6 +86,9 @@ struct RaceView: View {
                     }
                     .accessibilityLabel("Forfeit race")
                     .accessibilityIdentifier("forfeit")
+                    // during the finish roll the results screen is coming — no forfeit
+                    .disabled(scene.runPhase == "finished")
+                    .opacity(scene.runPhase == "finished" ? 0.35 : 1)
                 }
                 .padding(.trailing, 12)
                 .padding(.top, 8)
@@ -155,32 +159,56 @@ struct RaceView: View {
         }
     }
 
-    private var minimap: some View {
-        Canvas { ctx, size in
-            let pts = scene.minimapTrack
-            if pts.count > 1 {
-                var path = Path()
-                path.move(to: CGPoint(x: pts[0].x * size.width, y: pts[0].y * size.height))
-                for p in pts.dropFirst() {
-                    path.addLine(to: CGPoint(x: p.x * size.width, y: p.y * size.height))
-                }
-                path.closeSubpath()
-                ctx.stroke(path, with: .color(.white.opacity(0.85)),
-                           style: StrokeStyle(lineWidth: 3, lineJoin: .round))
+    private func minimap(size: CGFloat) -> some View {
+        ZStack {
+            if let img = Self.trackImage(track: scene.minimapTrack,
+                                         tick: scene.minimapStartTick, side: size) {
+                Image(uiImage: img)
+                    .resizable()
+                    .frame(width: size, height: size)
             }
-            var tick = Path()
-            let t0 = scene.minimapStartTick.0
-            let t1 = scene.minimapStartTick.1
-            tick.move(to: CGPoint(x: t0.x * size.width, y: t0.y * size.height))
-            tick.addLine(to: CGPoint(x: t1.x * size.width, y: t1.y * size.height))
-            ctx.stroke(tick, with: .color(Color.sgsAccent), lineWidth: 5)
-
-            let pp = scene.minimapPlayer
-            let c = CGPoint(x: pp.x * size.width, y: pp.y * size.height)
-            let r: CGFloat = 4.5
-            let rect = CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
-            ctx.fill(Path(ellipseIn: rect), with: .color(Color.sgsAccent))
-            ctx.stroke(Path(ellipseIn: rect), with: .color(.white), lineWidth: 2)
+            Canvas { ctx, canvasSize in
+                let pp = scene.minimapPlayer
+                let c = CGPoint(x: pp.x * canvasSize.width, y: pp.y * canvasSize.height)
+                let r: CGFloat = 4.5
+                let rect = CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)
+                ctx.fill(Path(ellipseIn: rect), with: .color(Color.sgsAccent))
+                ctx.stroke(Path(ellipseIn: rect), with: .color(.white), lineWidth: 2)
+            }
         }
+    }
+
+    /// Static track outline + start tick, rendered once per size (the old code
+    /// restroked 800 segments at 30Hz).
+    private static var trackImageCache: [Int: UIImage] = [:]
+
+    private static func trackImage(track: [CGPoint], tick: (CGPoint, CGPoint), side: CGFloat) -> UIImage? {
+        let key = Int(side)
+        if let cached = trackImageCache[key] { return cached }
+        guard track.count > 1 else { return nil }
+        let scale = UIScreen.main.scale
+        let px = CGSize(width: side * scale, height: side * scale)
+        let img = UIGraphicsImageRenderer(size: px).image { renderer in
+            let c = renderer.cgContext
+            c.scaleBy(x: scale, y: scale)
+            c.setStrokeColor(UIColor.white.withAlphaComponent(0.85).cgColor)
+            c.setLineWidth(3)
+            c.setLineJoin(.round)
+            c.beginPath()
+            c.move(to: CGPoint(x: track[0].x * side, y: track[0].y * side))
+            for p in track.dropFirst() {
+                c.addLine(to: CGPoint(x: p.x * side, y: p.y * side))
+            }
+            c.closePath()
+            c.strokePath()
+            c.setStrokeColor(UIColor(Color.sgsAccent).cgColor)
+            c.setLineWidth(5)
+            c.beginPath()
+            c.move(to: CGPoint(x: tick.0.x * side, y: tick.0.y * side))
+            c.addLine(to: CGPoint(x: tick.1.x * side, y: tick.1.y * side))
+            c.strokePath()
+        }
+        trackImageCache[key] = img
+        return img
     }
 }

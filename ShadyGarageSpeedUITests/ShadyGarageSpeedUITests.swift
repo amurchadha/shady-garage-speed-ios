@@ -162,6 +162,29 @@ final class ShadyGarageSpeedUITests: XCTestCase {
                       "prize part should be in the inventory")
     }
 
+    /// ghost-car regression: at heat ≥70 the cop path interrupts customer entry, and
+    /// the old double enterPlay (AppState + view onAppear) could spawn a duplicate
+    /// customer car. Entry is now single-sourced (AppState) and idempotent.
+    /// -cop makes the visit deterministic, -debughud exposes the live car count.
+    func testHeat75RelaunchSingleCustomerCar() throws {
+        launch(["-reset", "-heat", "75", "-cop", "-debughud", "-phase", "garage"])
+        XCTAssertTrue(app.buttons["cop-laylow"].waitForExistence(timeout: 10),
+                      "cop modal should appear at heat 75")
+        app.terminate()
+
+        launch(["-heat", "75", "-cop", "-debughud", "-phase", "garage"]) // NO -reset
+        let bribe = app.buttons["cop-bribe"]
+        XCTAssertTrue(bribe.waitForExistence(timeout: 10), "cop modal should reappear after relaunch")
+        bribe.tap() // pay → exactly one customer spawns
+        let cars = app.staticTexts["debug-cars"]
+        XCTAssertTrue(cars.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitLabel(cars, contains: "1", timeout: 10),
+                      "customer car should spawn, got \(cars.label)")
+        sleep(4) // past the full arrival tween — still exactly one car
+        XCTAssertEqual(cars.label, "cars:1", "no duplicate/ghost customer car in-scene")
+        shot("heat75_single_car")
+    }
+
     /// race: hold GAS, speed climbs, forfeit ✕ returns to the garage.
     func testRace() throws {
         launch(["-reset", "-phase", "garage"])
@@ -196,6 +219,36 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(app.buttons["install-0"].waitForExistence(timeout: 3),
                       "bought part should appear in the inventory")
         shot("build_catalog")
+    }
+
+    /// backgrounding mid-race: the sim freezes (timer can't jump), held inputs are
+    /// dropped, and audio loops stop. NOTE: the exact touch-cancel latch can't be
+    /// synthesized deterministically (XCUITest presses block the test thread), so
+    /// this asserts the observable contract: HUD intact after resume, speed must
+    /// not climb with no finger down, timer delta stays sane.
+    func testRaceBackgroundPause() throws {
+        launch(["-reset", "-phase", "race", "-rain", "off"])
+        let gas = app.buttons["tc-gas"]
+        XCTAssertTrue(gas.waitForExistence(timeout: 8))
+        sleep(4) // countdown + GO
+        gas.press(forDuration: 2)
+        let speedBefore = digits(app.staticTexts["race-speed"].label) ?? 0
+        let timerBefore = digits(app.staticTexts["race-timer"].label) ?? 0
+        XCTAssertGreaterThan(speedBefore, 0)
+
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.activate()
+        XCTAssertTrue(app.staticTexts["race-speed"].waitForExistence(timeout: 5))
+        sleep(2) // a latched GAS would keep accelerating through this window
+
+        let speedAfter = digits(app.staticTexts["race-speed"].label) ?? 0
+        XCTAssertLessThanOrEqual(speedAfter, speedBefore,
+                                 "speed must not climb after background/foreground (\(speedBefore) → \(speedAfter))")
+        let timerAfter = digits(app.staticTexts["race-timer"].label) ?? 0
+        XCTAssertLessThan(timerAfter - timerBefore, 5000,
+                          "timer jumped unreasonably (\(timerBefore) → \(timerAfter))")
+        shot("race_after_background")
     }
 
     /// suspicion is per-customer: it must NOT survive an app relaunch onto a fresh

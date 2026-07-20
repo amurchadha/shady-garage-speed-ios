@@ -24,6 +24,16 @@ final class GarageScene: SceneController {
 
     // MARK: internals
     private var mode: Mode = .attract
+    /// Guards job/tween/owner state shared by the main thread (job actions) and
+    /// the render thread (update loop) — same pattern as AudioEngine's lock.
+    private let stateLock = NSRecursiveLock()
+    /// Debug `-cop`: every heat ≥70 arrival triggers a cop visit (deterministic tests).
+    var forceCop = false
+    /// Debug `-debughud`: publish the live count of customer-car nodes in-scene
+    /// (regression hook for the double-enterPlay ghost car).
+    var debugHUD = false
+    @Published private(set) var carCount = 0
+    private var carCountT: Double = 0
     /// Set by GarageView in portrait: nudge the play camera down so the parked
     /// customer car sits above the bottom-sheet job panel.
     var portraitFraming = false
@@ -77,6 +87,7 @@ final class GarageScene: SceneController {
         scene.fogColor = UIColor(rgb: 0x8fd3ff)
         scene.fogStartDistance = 55
         scene.fogEndDistance = 150
+        applySkyEnvironment(scene, intensity: 0.8)
         buildScene()
     }
 
@@ -257,10 +268,12 @@ final class GarageScene: SceneController {
     // MARK: - customer flow (port of garage.js flow)
 
     private func startNextCustomer() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         // heat consequences trigger on arrival, before the next car pulls in
         if game.heat >= 100 {
             raid()
-        } else if game.heat >= 70 && Double.random(in: 0..<1) < 0.35 {
+        } else if game.heat >= 70 && (forceCop || Double.random(in: 0..<1) < 0.35) {
             copVisit()
             return // modal callbacks continue the flow
         }
@@ -268,6 +281,8 @@ final class GarageScene: SceneController {
     }
 
     private func raid() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         let n = (game.inventory.count + 1) / 2 // ceil(half)
         for _ in 0..<n where !game.inventory.isEmpty {
             game.inventory.remove(at: Int.random(in: 0..<game.inventory.count))
@@ -286,6 +301,8 @@ final class GarageScene: SceneController {
     }
 
     private func copVisit() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         prompt = "🚨 Cops are sniffing around…"
         canBribe = game.cash >= 200
         showCopModal = true
@@ -293,6 +310,8 @@ final class GarageScene: SceneController {
     }
 
     func copBribe() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         showCopModal = false
         game.cash -= 200
         game.heat = max(0, game.heat - 50)
@@ -302,6 +321,8 @@ final class GarageScene: SceneController {
     }
 
     func copLayLow() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         showCopModal = false
         game.heat = max(0, game.heat - 25)
         game.day += 1
@@ -311,6 +332,8 @@ final class GarageScene: SceneController {
     }
 
     private func spawnCustomer() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         let c = game.generateCustomer()
         customer = c
         let car = CarFactory.makeCar(color: c.color)
@@ -357,6 +380,8 @@ final class GarageScene: SceneController {
     }
 
     private func driveOut(_ happy: Bool) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         jobState = "leaving"
         rushedRemaining = nil
         prompt = happy ? "Another satisfied customer!" : "…"
@@ -384,6 +409,8 @@ final class GarageScene: SceneController {
     }
 
     private func rage() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         jobState = "angry"
         shakeT = 0.9
         sfx.fail()
@@ -397,6 +424,8 @@ final class GarageScene: SceneController {
     /// this job — from inventory, and uninstalled from the car if already fitted.
     private func clawbackStolenParts() {
         guard !stolenThisJob.isEmpty else { return }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         let ids = Set(stolenThisJob)
         stolenThisJob = []
         game.inventory.removeAll { ids.contains($0.id) }
@@ -451,6 +480,8 @@ final class GarageScene: SceneController {
     // MARK: - tap raycast (called from SceneKitView tap recognizer, main thread)
 
     func handleTap(_ point: CGPoint, _ view: SCNView) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard mode == .play, jobState == "inspect", let car = customerCar, drive == nil else { return }
         let hits = view.hitTest(point, options: [SCNHitTestOption.rootNode: car])
         var found: String?
@@ -470,6 +501,8 @@ final class GarageScene: SceneController {
     // MARK: - public job actions (called from GarageView)
 
     func fixPart(_ i: Int) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard jobState == "inspect", var c = customer, c.parts.indices.contains(i) else { return }
         var p = c.parts[i]
         guard p.needsService, !p.fixed else { return }
@@ -485,11 +518,15 @@ final class GarageScene: SceneController {
     }
 
     func stealPart(_ i: Int) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard jobState == "inspect", let c = customer, c.parts.indices.contains(i), !c.parts[i].stolen else { return }
         pendingStealIndex = i
     }
 
     func resolveSteal(_ zone: String) { // "green" | "yellow" | "red"
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard let i = pendingStealIndex else { return }
         pendingStealIndex = nil
         guard jobState == "inspect", var c = customer, c.parts.indices.contains(i) else { return }
@@ -536,6 +573,8 @@ final class GarageScene: SceneController {
     }
 
     func finishJob() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         guard jobState == "inspect", jobActions >= 1, let c = customer else { return }
         // rushed customers pay ×1.5 only if the job finished inside the 45s window
         let onTime = c.archetype != "rushed" || (elapsed - inspectStartT) <= Self.rushedWindow
@@ -553,24 +592,40 @@ final class GarageScene: SceneController {
 
     // MARK: - phase interface
 
-    func setMode(_ m: Mode) { mode = m }
+    func setMode(_ m: Mode) {
+        stateLock.lock()
+        mode = m
+        stateLock.unlock()
+    }
 
+    /// AppState is the single caller (view onAppear no longer re-enters). The
+    /// guard makes entry idempotent — a job already in progress (or the cop
+    /// modal pending between jobs) is not re-triggered, so no duplicate/ghost
+    /// customer car can ever be spawned (web: `customer != nil && customerCar`).
     func enterPlay() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         mode = .play
-        if customer == nil {
-            startNextCustomer()
-        } else if jobState == "inspect" {
-            prompt = "Tap a part on the car, or use the job panel."
+        guard customer == nil, !showCopModal else {
+            if jobState == "inspect" {
+                prompt = "Tap a part on the car, or use the job panel."
+            }
+            return
         }
+        startNextCustomer()
     }
 
     func exitPlay() {
+        stateLock.lock()
         selectedPart = nil
+        stateLock.unlock()
     }
 
     // MARK: - frame update (render thread)
 
     override func update(dt: TimeInterval) {
+        stateLock.lock()
+        defer { stateLock.unlock() }
         elapsed += dt
 
         if mode == .attract {
@@ -646,6 +701,21 @@ final class GarageScene: SceneController {
             let left = max(0, Int((Self.rushedWindow - (elapsed - inspectStartT)).rounded(.up)))
             if left != rushedRemaining {
                 DispatchQueue.main.async { self.rushedRemaining = left }
+            }
+        }
+
+        // debug -debughud: live customer-car count (ghost-car regression hook)
+        if debugHUD {
+            carCountT += dt
+            if carCountT > 0.5 {
+                carCountT = 0
+                var n = 0
+                scene.rootNode.enumerateHierarchy { node, _ in
+                    if node.name == "car" { n += 1 }
+                }
+                if n != carCount {
+                    DispatchQueue.main.async { self.carCount = n }
+                }
             }
         }
 

@@ -100,6 +100,9 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-arch regular|rushed|skeptic|bigspender` — pin every generated customer to an archetype.
 - `-mgzone green|yellow|red` — force the steal minigame outcome.
 - `-watch` / `-nowatch` — pin the owner's watching state on / disable the watch cycle.
+- `-heat N` — set the Heat meter (persisted, so a relaunch keeps it).
+- `-cop` — every heat ≥70 arrival triggers a cop visit (deterministic cop-flow tests).
+- `-debughud` — show a live customer-car node count under the prompt (ghost-car regression hook).
 - `-reset` — wipe the `sgs_save` UserDefaults save on launch (fresh state; used by UI tests).
 - `-seedparts` — seed the inventory with one tier-3 part of each type (deterministic build-bay tests).
 
@@ -111,6 +114,8 @@ garage loop (fix → steal → finish), build bay (install raises Speed), Parts 
 suspicion persistence (steal → kill app → relaunch → suspicion is 0),
 Skeptic archetype suspicion math (red-zone steal → 35 × 1.5 = 53, via `-arch skeptic -mgzone red -nowatch`),
 the pink-slip ladder (`-ladderwin -instantfinish` → challenge Granny → WIN header, ladder row ✓, prize in inventory),
+the heat-75 ghost-car regression (`-heat 75 -cop` relaunch → cop flow → `cars:1` on the debug HUD),
+race background/foreground (press home mid-race → resume → speed can't climb, timer sane),
 and landscape layout checks of the garage HUD and race controls (`testZZZLandscape`, sorted to run
 last because this XCTest build mis-synthesizes tap/isHittable coordinates for the rest of a session
 once the device has been rotated — landscape assertions are therefore existence-based and the layout
@@ -126,16 +131,43 @@ xcodebuild test -scheme ShadyGarageSpeed \
 ```
 
 Accessibility identifier convention: kebab-case ids on interactive elements —
-`new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`, `nav-ladder`,
+`new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`, `nav-ladder`, `nav-menu`,
 `fix-N` / `steal-N` (job rows), `finish-job`, `job-total`, `hud-day`, `hud-cash`,
 `hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
-`arch-badge`, `watch-chip`, `rushed-chip`,
+`arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
 `pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
 `catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
 `race-timer`, `race-speed`, `tc-left|right|gas|brake|nos`, `forfeit`,
 `race-again`, `results-back`.
+
+## Defect-fix pass (adversarial review)
+
+- **Ghost car**: `enterPlay()` was called by both `AppState` and `GarageView.onAppear` —
+  at heat ≥70 (cop visit) the second call spawned a duplicate customer. `AppState` is now
+  the single caller and `enterPlay` is idempotent (no-op while a job is active or the cop
+  modal is pending).
+- **Threading**: race run-phase is an enum owned by the render thread (SwiftUI gets a
+  read-only published mirror), so the countdown→GO transition fires exactly once; all
+  `GameState` mutations in `RaceScene.finishLap` hop to the main thread; `GarageScene`
+  job/tween state is guarded by an `NSRecursiveLock` taken by both the render-loop
+  `update(dt:)` and the main-thread job actions.
+- **Backgrounding**: `scenePhase` drives `SceneController.appActive` — integration
+  freezes (no dt spike on resume), race inputs are cleared, engine/NOS loops stop and
+  resume cleanly, and the steal minigame sweep (wall-clock `CACurrentMediaTime` deltas)
+  pauses.
+- **Input latch**: `HoldButton` uses `@GestureState`, which auto-resets on system
+  touch-cancel (home swipe, call banner).
+- **Materials**: `FlatMat.lit` is `.physicallyBased` (roughness/metalness were dead under
+  `.lambert`) and every scene gets a procedural `MDLSkyCubeTexture` lighting environment
+  (per-time-of-day intensity in the race scene).
+- **Smaller**: forfeit guarded to countdown/racing (the finish roll can't be cancelled past
+  the results screen); wrong-way drivers can't arm the lap mid-checkpoint (forward-travel
+  only); speed HUD rounds instead of truncating; the player-name 14-char cap is applied on
+  commit (IME-safe) after trimming; suspension lowering now includes exhaust, stripes and
+  widebody pods; the minimap's static outline is a cached image (only the player dot
+  redraws); the garage topbar has a Menu button.
 
 ## Notes
 

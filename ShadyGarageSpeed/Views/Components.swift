@@ -130,21 +130,25 @@ struct HoldButton: View {
     var diameter: CGFloat = 64
     var a11y: String? = nil
     @Binding var pressed: Bool
+    /// @GestureState auto-resets when the gesture ends OR is cancelled by the
+    /// system (home swipe, call banner) — the old onEnded-only approach could
+    /// latch the button pressed forever.
+    @GestureState private var held = false
 
     var body: some View {
         Text(label)
             .font(.system(size: 15, weight: .black))
             .foregroundStyle(.white)
             .frame(width: diameter, height: diameter)
-            .background(tint.opacity(pressed ? 0.85 : 0.4))
+            .background(tint.opacity(held ? 0.85 : 0.4))
             .clipShape(Circle())
             .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1.5))
-            .scaleEffect(pressed ? 0.92 : 1)
+            .scaleEffect(held ? 0.92 : 1)
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { _ in if !pressed { pressed = true } }
-                    .onEnded { _ in pressed = false }
+                    .updating($held) { _, state, _ in state = true }
             )
+            .onChange(of: held) { _, v in pressed = v }
             .accessibilityLabel(label)
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier(a11y ?? "")

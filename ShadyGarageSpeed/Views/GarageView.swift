@@ -32,6 +32,12 @@ struct GarageView: View {
                             .transition(.opacity)
                             .accessibilityIdentifier("garage-prompt")
                     }
+                    if scene.debugHUD {
+                        Text("cars:\(scene.carCount)")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color.sgsMuted)
+                            .accessibilityIdentifier("debug-cars")
+                    }
                     Spacer()
                     if !compact {
                         jobPanel(maxHeight: geo.size.height * 0.45)
@@ -65,8 +71,9 @@ struct GarageView: View {
                 }
             }
             .onAppear {
+                // NOTE: enterPlay is owned by AppState (single source) — calling it
+                // here too used to double-enter and could spawn a ghost customer car.
                 scene.portraitFraming = geo.size.height > geo.size.width
-                scene.enterPlay()
             }
             .onChange(of: geo.size) { _, newSize in
                 scene.portraitFraming = newSize.height > newSize.width
@@ -104,6 +111,7 @@ struct GarageView: View {
                               barWidth: 64, a11y: "hud-suspicion")
                         meter("Heat", value: game.heat,
                               color: Color(rgb: 0xf97316), barWidth: 64, a11y: "hud-heat")
+                        SGSButton(title: "🏠", small: true, a11y: "nav-menu") { app.goMenu() }
                         SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
                                   a11y: "mute-toggle") { audio.toggleMute() }
                         SGSButton(title: "🏆", small: true, a11y: "nav-ladder") { showLadder = true }
@@ -130,6 +138,7 @@ struct GarageView: View {
                     SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
                               a11y: "mute-toggle") { audio.toggleMute() }
                     SGSButton(title: "🏆 Ladder", small: true, a11y: "nav-ladder") { showLadder = true }
+                    SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu") { app.goMenu() }
                     SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
                     SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                 }

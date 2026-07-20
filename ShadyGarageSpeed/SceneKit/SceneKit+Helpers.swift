@@ -1,6 +1,7 @@
 // SceneKit+Helpers.swift — shared SCN helpers: colors, materials, primitive nodes,
 // and the SceneController base class.
 import SceneKit
+import ModelIO
 import UIKit
 
 // MARK: - Colors
@@ -25,11 +26,13 @@ func shade(_ hex: Int, _ f: CGFloat) -> UIColor {
 // MARK: - Materials
 
 enum FlatMat {
-    /// Lit matte material (MeshStandardMaterial roughness 0.8 analogue).
-    /// ambient.contents mirrors diffuse so SCN ambient lights act like three.js hemisphere fill.
+    /// Lit matte material (MeshStandardMaterial analogue). PBR so the assigned
+    /// roughness/metalness actually take effect (they are silently ignored under
+    /// .lambert). ambient.contents mirrors diffuse so SCN ambient lights still
+    /// act like three.js hemisphere fill alongside the sky IBL.
     static func lit(_ color: UIColor) -> SCNMaterial {
         let m = SCNMaterial()
-        m.lightingModel = .lambert
+        m.lightingModel = .physicallyBased
         m.diffuse.contents = color
         m.ambient.contents = color
         m.roughness.contents = 0.8
@@ -50,6 +53,18 @@ enum FlatMat {
         m.emission.intensity = intensity
         return m
     }
+}
+
+/// Procedural sky IBL (zero assets) so PBR materials get believable ambient and
+/// specular response; per-scene intensity keeps the look aligned with the old
+/// lambert render rather than redesigning it.
+func applySkyEnvironment(_ scene: SCNScene, intensity: CGFloat) {
+    let sky = MDLSkyCubeTexture()
+    sky.turbidity = 0.55
+    sky.upperAtmosphereScattering = 0.4
+    sky.groundAlbedo = 0.35
+    scene.lightingEnvironment.contents = sky
+    scene.lightingEnvironment.intensity = intensity
 }
 
 // MARK: - Primitive nodes (mirror web box()/mesh helpers)
@@ -103,10 +118,22 @@ func sphereNode(radius: CGFloat, color: UIColor, segments: Int = 8,
 // MARK: - SceneController base
 
 /// Owns the SCNScene + camera, ticks update(dt:) from the render loop with a 0.05s clamp.
+/// When `appActive` is false (backgrounded/inactive) the sim freezes outright —
+/// no integration, no dt spike on resume.
 class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
     let scene = SCNScene()
     let cameraNode = SCNNode()
     private var lastTime: TimeInterval = 0
+
+    /// Set by AppState from scenePhase. Subclasses override appActiveChanged for
+    /// audio/input cleanup.
+    var appActive = true {
+        didSet {
+            if appActive == oldValue { return }
+            if !appActive { lastTime = 0 } // resume without a dt spike
+            appActiveChanged(appActive)
+        }
+    }
 
     override init() {
         super.init()
@@ -119,7 +146,11 @@ class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
 
     func resetClock() { lastTime = 0 }
 
+    /// Called on appActive transitions (main thread). Base implementation does nothing.
+    func appActiveChanged(_ active: Bool) {}
+
     func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        guard appActive else { lastTime = time; return }
         let dt = lastTime == 0 ? 0 : min(0.05, time - lastTime)
         lastTime = time
         update(dt: dt)

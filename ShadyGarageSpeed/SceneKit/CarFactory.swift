@@ -154,13 +154,6 @@ enum CarFactory {
                 if node.name == "rim" { node.geometry?.materials = [rimColor] }
             }
         }
-        // suspension tier → lower ride height
-        if let p = parts.suspension {
-            let dy = Float(0.04 * Double(p.tier))
-            for n in ["body", "cabin", "engine", "spoiler", "lights", "turbo", "bodykit"] {
-                if let o = find(car, n) { o.position.y -= dy }
-            }
-        }
         // L3: lower, sportier accent stripes
         if L >= 3 {
             find(car, "body")?.position.y -= 0.06
@@ -172,12 +165,22 @@ enum CarFactory {
         }
         // L4: widebody pods + white racing stripes
         if L >= 4 {
-            car.addChildNode(boxNode(0.3, 0.42, 2.8, UIColor(rgb: 0x1f2937), -1.08, 0.62, 0))
-            car.addChildNode(boxNode(0.3, 0.42, 2.8, UIColor(rgb: 0x1f2937), 1.08, 0.62, 0))
-            car.addChildNode(boxNode(0.26, 0.05, 1.3, UIColor(rgb: 0xffffff), -0.3, 0.98, 1.5))
-            car.addChildNode(boxNode(0.26, 0.05, 1.3, UIColor(rgb: 0xffffff), 0.3, 0.98, 1.5))
-            car.addChildNode(boxNode(0.26, 0.05, 2.0, UIColor(rgb: 0xffffff), -0.3, 1.42, -0.35))
-            car.addChildNode(boxNode(0.26, 0.05, 2.0, UIColor(rgb: 0xffffff), 0.3, 1.42, -0.35))
+            car.addChildNode(boxNode(0.3, 0.42, 2.8, UIColor(rgb: 0x1f2937), -1.08, 0.62, 0, name: "widebody"))
+            car.addChildNode(boxNode(0.3, 0.42, 2.8, UIColor(rgb: 0x1f2937), 1.08, 0.62, 0, name: "widebody"))
+            car.addChildNode(boxNode(0.26, 0.05, 1.3, UIColor(rgb: 0xffffff), -0.3, 0.98, 1.5, name: "stripe"))
+            car.addChildNode(boxNode(0.26, 0.05, 1.3, UIColor(rgb: 0xffffff), 0.3, 0.98, 1.5, name: "stripe"))
+            car.addChildNode(boxNode(0.26, 0.05, 2.0, UIColor(rgb: 0xffffff), -0.3, 1.42, -0.35, name: "stripe"))
+            car.addChildNode(boxNode(0.26, 0.05, 2.0, UIColor(rgb: 0xffffff), 0.3, 1.42, -0.35, name: "stripe"))
+        }
+        // suspension tier → lower ride height. Runs LAST and covers every
+        // add-on (exhaust, stripes, widebody pods) so nothing floats.
+        if let p = parts.suspension {
+            let dy = Float(0.04 * Double(p.tier))
+            let lower: Set<String> = ["body", "cabin", "engine", "spoiler", "lights",
+                                      "turbo", "bodykit", "exhaust", "stripe", "widebody"]
+            car.enumerateChildNodes { node, _ in
+                if let name = node.name, lower.contains(name) { node.position.y -= dy }
+            }
         }
         return car
     }

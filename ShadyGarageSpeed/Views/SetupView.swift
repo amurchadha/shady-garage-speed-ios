@@ -24,9 +24,8 @@ struct SetupView: View {
                             .stroke(Color.white.opacity(0.2), lineWidth: 2))
                         .frame(maxWidth: 260)
                         .accessibilityIdentifier("setup-name")
-                        .onChange(of: name) { _, v in
-                            if v.count > 14 { name = String(v.prefix(14)) }
-                        }
+                // NOTE: no per-keystroke length cap — the 14-char cap is applied
+                // on commit in newGame(), so IME composition is never truncated.
                 }
 
                 Text("Pick your partner — each has a perk:")

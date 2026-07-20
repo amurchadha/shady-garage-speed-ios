@@ -22,6 +22,7 @@ final class BuildScene: SceneController {
         scene.fogColor = UIColor(rgb: 0x2a2f3a)
         scene.fogStartDistance = 30
         scene.fogEndDistance = 90
+        applySkyEnvironment(scene, intensity: 0.45)
         buildScene()
     }
 

@@ -16,6 +16,7 @@ struct ShadyGarageSpeedApp: App {
 
 struct RootView: View {
     @EnvironmentObject var app: AppState
+    @Environment(\.scenePhase) private var scenePhase
     @State private var debugApplied = false
 
     var body: some View {
@@ -49,6 +50,10 @@ struct RootView: View {
             .allowsHitTesting(false) // toasts are display-only; never block taps
         }
         .onAppear { applyDebugArgOnce() }
+        .onChange(of: scenePhase) { _, phase in
+            // freeze all sims + drop inputs/audio while inactive/backgrounded
+            app.setActive(phase == .active)
+        }
     }
 
     /// The garage scene also runs (in attract mode) behind the menu/setup screens.

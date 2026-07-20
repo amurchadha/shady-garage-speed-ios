@@ -1,16 +1,21 @@
 // StealMinigameView.swift — stealth timing minigame (mirrors #modal-minigame).
-// Marker sweeps 0–100% at 95%/s; green zone 18% at G∈[12,70], yellow 9% flanks.
+// Marker sweeps 0–100% at 95%/s by WALL-CLOCK delta (CACurrentMediaTime), so
+// timer throttling or backgrounding can't change the difficulty; the sweep
+// pauses while the app is inactive.
 import SwiftUI
+import QuartzCore
 
 struct StealMinigameView: View {
     let title: String
     let onResolve: (String) -> Void // "green" | "yellow" | "red"
 
+    @Environment(\.scenePhase) private var scenePhase
     @State private var g: Double = 30        // green zone left edge, %
     @State private var pos: Double = 0       // marker, %
     @State private var dir: Double = 1
     @State private var flash: String? = nil
     @State private var resolved = false
+    @State private var lastTick: CFTimeInterval? = nil
 
     private let ticker = Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()
 
@@ -62,8 +67,14 @@ struct StealMinigameView: View {
             dir = Double.random(in: 0..<1) < 0.5 ? 1 : -1
         }
         .onReceive(ticker) { _ in
-            guard !resolved else { return }
-            pos += dir * 95 * (1.0 / 60)
+            // wall-clock deltas: throttled/dropped ticks can't slow the marker,
+            // and the sweep pauses cleanly while the app is inactive
+            guard !resolved, scenePhase == .active else { lastTick = nil; return }
+            let now = CACurrentMediaTime()
+            defer { lastTick = now }
+            guard let last = lastTick else { return }
+            let dt = min(0.1, now - last)
+            pos += dir * 95 * dt
             if pos >= 100 { pos = 100; dir = -1 }
             if pos <= 0 { pos = 0; dir = 1 }
         }

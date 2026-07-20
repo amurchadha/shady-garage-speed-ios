@@ -78,6 +78,14 @@ final class AppState: ObservableObject {
 
     // MARK: navigation
 
+    /// scenePhase → all scene sims: false freezes integration (no dt spike on
+    /// resume) and drops race inputs/audio; true resumes cleanly.
+    func setActive(_ active: Bool) {
+        garageScene.appActive = active
+        buildScene.appActive = active
+        raceScene.appActive = active
+    }
+
     func goMenu() {
         garageScene.exitPlay()
         garageScene.setMode(.attract)
@@ -168,6 +176,13 @@ final class AppState: ObservableObject {
         if args.contains("-instantfinish") { raceScene.instantFinish = true }
         if args.contains("-watch") { garageScene.forceWatch = true }
         if args.contains("-nowatch") { garageScene.watchDisabled = true }
+        if args.contains("-cop") { garageScene.forceCop = true }
+        if args.contains("-debughud") { garageScene.debugHUD = true }
+        if let i = args.firstIndex(of: "-heat"), i + 1 < args.count,
+           let h = Int(args[i + 1]) {
+            game.heat = min(100, max(0, h))
+            game.save() // persist so a relaunch sees the same heat
+        }
         if let i = args.firstIndex(of: "-arch"), i + 1 < args.count {
             game.forcedArchetype = args[i + 1]
         }

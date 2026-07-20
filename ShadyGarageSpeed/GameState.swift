@@ -263,7 +263,10 @@ final class GameState: ObservableObject {
     // MARK: lifecycle
 
     func newGame(_ name: String, _ charIndex: Int) {
-        playerName = name.trimmingCharacters(in: .whitespaces).isEmpty ? "Boss" : String(name.prefix(14))
+        // trim first, then cap at 14 chars (cap is applied here on commit, not
+        // per keystroke, so IME composition is never mangled)
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        playerName = trimmed.isEmpty ? "Boss" : String(trimmed.prefix(14))
         characterIndex = charIndex
         cash = 200
         day = 1
