@@ -3,12 +3,24 @@
 import SceneKit
 import UIKit
 
+struct ChallengeResult {
+    let name: String      // rival raced
+    let target: Double    // their lap time to beat
+    let win: Bool
+    let margin: Double    // target - lap (positive = won by this much)
+    let prizeType: String
+    let prizeTier: Int
+    let purse: Int
+    let becameLegend: Bool // this win completed the ladder
+}
+
 struct FinishData {
     let lap: Double
     let best: Double
     let value: Int
     let reward: Int
     let newBest: Bool
+    var challenge: ChallengeResult? = nil
 }
 
 final class RaceScene: SceneController {
@@ -27,6 +39,7 @@ final class RaceScene: SceneController {
     @Published private(set) var raceSpeedKmh = 0
     @Published private(set) var nosMeterInt = 100
     @Published private(set) var conditionsText = ""
+    @Published private(set) var challengeText: String? = nil // pink-slip HUD banner
     @Published private(set) var minimapTrack: [CGPoint] = []
     @Published private(set) var minimapStartTick = (CGPoint.zero, CGPoint.zero)
     @Published private(set) var minimapPlayer = CGPoint(x: 0.5, y: 0.5)
@@ -74,6 +87,12 @@ final class RaceScene: SceneController {
     var forcedRain: Bool? = nil
     /// Debug auto-drive via launch arg -autodrive: holds gas, steers to the centerline.
     var autoDrive = false
+    /// Pink-slip mode: ladder position (0–3) set by AppState.startChallenge.
+    var challengeIndex: Int? = nil
+    /// Debug `-ladderwin`: the challenged rival's time is treated as 999s (auto-win).
+    var ladderWin = false
+    /// Debug `-instantfinish`: finishLap fires ~1s after GO (deterministic tests).
+    var instantFinish = false
 
     // MARK: scene nodes
     private var carMesh: SCNNode?
@@ -585,6 +604,11 @@ final class RaceScene: SceneController {
             self.raceSpeedKmh = 0
             self.nosMeterInt = 100
             self.countdownText = "3"
+            if let ci = self.challengeIndex, let rival = GameState.ladderRival(ci) {
+                self.challengeText = "PINK SLIP: beat \(rival.name)'s \(String(format: "%.1f", rival.time))s"
+            } else {
+                self.challengeText = nil
+            }
         }
         sfx.beep(440)
         cameraNode.position = camPos
@@ -628,14 +652,43 @@ final class RaceScene: SceneController {
         if newBest { game.bestLap = lap }
         let sum = stats.speed + stats.accel + stats.handling
         let mult = max(0.5, min(1.8, 22.0 / lap))
-        let value = Int((Double(sum) * 12 * mult).rounded())
-        let reward = Int((Double(value) * 0.12).rounded())
-        game.carValue = value
-        game.cash += reward
-        game.save()
+        // pink-slip runs pay the rival's prize only — no normal reward (web parity)
+        let value = challengeIndex == nil ? Int((Double(sum) * 12 * mult).rounded()) : 0
+        let reward = challengeIndex == nil ? Int((Double(value) * 0.12).rounded()) : 0
+        if challengeIndex == nil {
+            game.carValue = value
+            game.cash += reward
+            game.save()
+        }
         sfx.success()
         Haptics.notify(.success)
-        finishData = FinishData(lap: lap, best: best, value: value, reward: reward, newBest: newBest)
+
+        // pink-slip challenge: win = beat the rival's time; a loss costs nothing
+        var challengeResult: ChallengeResult? = nil
+        if let ci = challengeIndex, let rival = GameState.ladderRival(ci) {
+            let target = ladderWin ? 999.0 : rival.time // -ladderwin debug: auto-win
+            let win = lap < target
+            var becameLegend = false
+            if win {
+                game.ladder = max(game.ladder, ci + 1)
+                game.inventory.append(game.makePart(rival.prizeType, rival.prizeTier))
+                game.cash += rival.purse
+                if game.ladder >= 4 && !game.legend { becameLegend = true }
+                if game.ladder >= 4 { game.legend = true }
+                game.save()
+                let prizeName = "\(GameState.tierNames[rival.prizeTier]) \(GameState.partLabels[rival.prizeType] ?? rival.prizeType)"
+                toasts.push("Won \(rival.name)'s \(prizeName) + $\(rival.purse)!", .good)
+            } else {
+                game.save() // persist a new bestLap even on a lost challenge
+                toasts.push(String(format: "Lost to %@ by %.2fs", rival.name, lap - target), .bad)
+            }
+            challengeResult = ChallengeResult(name: rival.name, target: rival.time, win: win,
+                                              margin: rival.time - lap, prizeType: rival.prizeType,
+                                              prizeTier: rival.prizeTier, purse: rival.purse,
+                                              becameLegend: becameLegend)
+        }
+        finishData = FinishData(lap: lap, best: best, value: value, reward: reward,
+                                newBest: newBest, challenge: challengeResult)
     }
 
     private func nearestIndex(_ p: SIMD2<Float>, _ last: Int) -> Int {
@@ -700,6 +753,12 @@ final class RaceScene: SceneController {
 
         if runPhase == "racing" {
             raceT += dt
+            // debug -instantfinish: force the lap done ~1s after GO (deterministic
+            // tests). finishData != nil guards the one-frame window before the
+            // main-thread phase flip lands.
+            if instantFinish && raceT > 1 && finishData == nil {
+                finishLap()
+            }
             if goT > 0 {
                 goT -= dt
                 if goT <= 0 {

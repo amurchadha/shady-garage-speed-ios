@@ -93,6 +93,28 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         shot("garage_after_finish")
     }
 
+    /// customer archetypes: a Skeptic multiplies suspicion gains ×1.5 (red zone
+    /// 35 → 52.5 → 53). -mgzone red makes the steal outcome deterministic and
+    /// -nowatch keeps the owner's watch cycle from adding its own ×1.5.
+    func testArchetypeSkepticSuspicion() throws {
+        launch(["-reset", "-arch", "skeptic", "-mgzone", "red", "-nowatch", "-phase", "garage"])
+        let prompt = app.staticTexts["garage-prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+        let badge = app.staticTexts["arch-badge"]
+        XCTAssertTrue(badge.waitForExistence(timeout: 3))
+        XCTAssertEqual(badge.label, "🧐")
+        XCTAssertTrue(tapFirstEnabled("steal", range: 0...5), "no stealable part")
+        let swap = app.buttons["mg-swap"]
+        XCTAssertTrue(swap.waitForExistence(timeout: 3))
+        swap.tap()
+        XCTAssertTrue(swap.waitForNonExistence(timeout: 5))
+        let susp = app.staticTexts["hud-suspicion"]
+        XCTAssertTrue(susp.waitForExistence(timeout: 3))
+        XCTAssertEqual(susp.label, "53", "skeptic red-zone steal should be 35 × 1.5 = 53")
+        shot("archetype_skeptic")
+    }
+
     /// build bay: stats render, installing the seeded tier-3 engine raises Speed.
     func testBuildBay() throws {
         launch(["-reset", "-seedparts", "-phase", "garage"])
@@ -106,6 +128,38 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         app.buttons["install-0"].tap() // seeded engine, tier 3 (+11 speed/tier)
         XCTAssertEqual(speed.label, "60")
         shot("build_after_install")
+    }
+
+    /// pink-slip ladder: challenge Granny Shift with a fixed rival time (-ladderwin)
+    /// and an auto-finished lap (-instantfinish) → the win advances the ladder and
+    /// drops the Sport Tires prize into the inventory.
+    func testLadderChallengeWin() throws {
+        launch(["-reset", "-ladderwin", "-instantfinish", "-phase", "garage"])
+        let ladder = app.buttons["nav-ladder"]
+        XCTAssertTrue(ladder.waitForExistence(timeout: 8))
+        ladder.tap()
+        let challenge = app.buttons["ladder-challenge"]
+        XCTAssertTrue(challenge.waitForExistence(timeout: 5))
+        challenge.tap() // dismisses the sheet and deep-links into the pink-slip race
+
+        XCTAssertTrue(app.staticTexts["pinkslip-banner"].waitForExistence(timeout: 8))
+        let header = app.staticTexts["results-pinkslip"]
+        XCTAssertTrue(header.waitForExistence(timeout: 25), "no pink-slip results")
+        XCTAssertEqual(header.label, "🏆 PINK SLIP WIN!")
+        shot("pinkslip_results")
+
+        app.buttons["results-back"].tap()
+        XCTAssertTrue(ladder.waitForExistence(timeout: 5))
+        ladder.tap()
+        XCTAssertTrue(app.buttons["ladder-close"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["ladder-row-0"].label, "✓", "Granny row should be beaten")
+        XCTAssertEqual(app.staticTexts["ladder-row-1"].label, "🏁", "Lugnut should be the next rival")
+        app.buttons["ladder-close"].tap()
+        sleep(1) // let the sheet finish dismissing
+
+        app.buttons["nav-build"].tap()
+        XCTAssertTrue(app.buttons["install-0"].waitForExistence(timeout: 5),
+                      "prize part should be in the inventory")
     }
 
     /// race: hold GAS, speed climbs, forfeit ✕ returns to the garage.

@@ -93,6 +93,12 @@ struct StealMinigameView: View {
         } else if (pos >= g - 9 && pos < g) || (pos > g + 18 && pos <= g + 27) {
             zone = "yellow"
         }
+        // debug launch arg `-mgzone green|yellow|red` forces the outcome (tests)
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-mgzone"), i + 1 < args.count,
+           ["green", "yellow", "red"].contains(args[i + 1]) {
+            zone = args[i + 1]
+        }
         flash = zone
         if zone == "green" { AudioEngine.shared.success() }
         else if zone == "red" { AudioEngine.shared.fail() }

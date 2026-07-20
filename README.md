@@ -37,10 +37,17 @@ Xcode know — all sources live under `ShadyGarageSpeed/` and are globbed by Xco
 - **Fix** worn parts for safe cash, or **Steal** them for yourself via the timing minigame —
   watch the **Suspicion** meter (at 100 the customer storms off and takes their parts back)
   and the **Heat** meter (cops visit at ≥70, raid at 100 — half your parts plus a 25% cash fine).
+- Customers come in **archetypes**: ⏱ **Rushed** (finish within 45s for ×1.5 pay),
+  🧐 **Skeptic** (×1.5 suspicion gains, ×1.25 pay), 💰 **Big Spender** (better tiers, ×1.5 pay).
+  The **owner** stands by the bay — when the 👁 chip is up, steals cost ×1.5 suspicion.
 - Spend cash and stolen parts in the **Build Bay**: chassis upgrades, 6 part slots, and a
   **Parts Catalog** selling brand-new parts (Sport $160 / Pro $420 / Elite $950).
 - Prove it in the **time trial**: day/sunset/night conditions cycle per race, 35% rain chance,
   NOS boost (watch the lockout when the meter hits empty), best-lap tracking, rival leaderboard.
+- Climb the **🏆 pink-slip ladder** (garage topbar): beat each rival's lap time to win their
+  part + purse — Granny Shift (Sport Tires + $150), Lugnut (Pro Exhaust + $300),
+  Torque Queen (Pro Turbo + $500), Vex (Elite Engine + $1000). Beat all four to become
+  the **Street Legend**.
 - 🔊/🔇 button (garage topbar + race HUD) mutes all audio; the setting persists.
 
 ## Feature map (web → iOS)
@@ -86,6 +93,13 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-rain on|off` — force race weather.
 - `-autodrive` — race drives itself (holds gas, steers to the centerline); handy for mid-race screenshots.
 - `-catalog` — Build bay opens on the Catalog tab instead of Inventory.
+- `-laddersheet` — garage opens with the rival ladder sheet up.
+- `-challenge N` — deep-link a pink-slip race vs ladder position N (0 = Granny … 3 = Vex).
+- `-ladderwin` — the challenged rival's time counts as 999s (auto-win; deterministic ladder tests).
+- `-instantfinish` — the lap finishes ~1s after GO (deterministic race-end tests).
+- `-arch regular|rushed|skeptic|bigspender` — pin every generated customer to an archetype.
+- `-mgzone green|yellow|red` — force the steal minigame outcome.
+- `-watch` / `-nowatch` — pin the owner's watching state on / disable the watch cycle.
 - `-reset` — wipe the `sgs_save` UserDefaults save on launch (fresh state; used by UI tests).
 - `-seedparts` — seed the inventory with one tier-3 part of each type (deterministic build-bay tests).
 
@@ -95,6 +109,8 @@ A UI-testing target (`ShadyGarageSpeedUITests`) drives the real app end-to-end:
 garage loop (fix → steal → finish), build bay (install raises Speed), Parts Catalog
 (buy a Sport engine → cash drops, part lands in inventory), race (GAS → speed > 0 → forfeit),
 suspicion persistence (steal → kill app → relaunch → suspicion is 0),
+Skeptic archetype suspicion math (red-zone steal → 35 × 1.5 = 53, via `-arch skeptic -mgzone red -nowatch`),
+the pink-slip ladder (`-ladderwin -instantfinish` → challenge Granny → WIN header, ladder row ✓, prize in inventory),
 and landscape layout checks of the garage HUD and race controls (`testZZZLandscape`, sorted to run
 last because this XCTest build mis-synthesizes tap/isHittable coordinates for the rest of a session
 once the device has been rotated — landscape assertions are therefore existence-based and the layout
@@ -110,9 +126,12 @@ xcodebuild test -scheme ShadyGarageSpeed \
 ```
 
 Accessibility identifier convention: kebab-case ids on interactive elements —
-`new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`,
+`new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`, `nav-ladder`,
 `fix-N` / `steal-N` (job rows), `finish-job`, `job-total`, `hud-day`, `hud-cash`,
 `hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
+`arch-badge`, `watch-chip`, `rushed-chip`,
+`ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
+`pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
 `catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
 `race-timer`, `race-speed`, `tc-left|right|gas|brake|nos`, `forfeit`,
@@ -134,6 +153,12 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
   60–180Hz) starts on GO, tracks `speed/maxSpeed`, and stops on finish/forfeit/exit.
 - **Wheels**: all four wheels spin by `speed/radius` per frame (also during the garage
   drive tweens, by tween distance); the front two steer at `steerInput * 0.4` rad.
+- **Meta-spine**: pink-slip rival ladder (`ladder`/`legend` persisted in the save with
+  backfill; challenge flow via `AppState.raceChallenge` → `RaceScene.challengeIndex`,
+  resolved in `finishLap`), customer archetypes (Regular 55 / Rushed 15 / Skeptic 15 /
+  BigSpender 15 — rushed 45s pay window, skeptic ×1.5 suspicion & ×1.25 pay, bigspender
+  richer tiers & ×1.5 pay), and the owner avatar idling by the bay with a 4–8s watch
+  cycle (👁 chip + red Steal buttons; stealing while watched costs ×1.5 suspicion).
 - The garage/build cameras tilt slightly in portrait so the car clears the bottom sheets.
 
 ## Persistence

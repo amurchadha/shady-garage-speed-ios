@@ -8,6 +8,8 @@ struct GarageView: View {
     @ObservedObject var scene: GarageScene
     @ObservedObject var game: GameState
     @ObservedObject private var audio = AudioEngine.shared
+    /// Debug launch arg `-laddersheet` opens the rival ladder directly (screenshots).
+    @State private var showLadder = ProcessInfo.processInfo.arguments.contains("-laddersheet")
 
     var body: some View {
         GeometryReader { geo in
@@ -69,6 +71,9 @@ struct GarageView: View {
             .onChange(of: geo.size) { _, newSize in
                 scene.portraitFraming = newSize.height > newSize.width
             }
+            .sheet(isPresented: $showLadder) {
+                LadderSheet(game: game)
+            }
         }
     }
 
@@ -89,8 +94,6 @@ struct GarageView: View {
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
                         Spacer()
-                        SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
-                                  a11y: "mute-toggle") { audio.toggleMute() }
                         SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
                         SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                     }
@@ -101,6 +104,9 @@ struct GarageView: View {
                               barWidth: 64, a11y: "hud-suspicion")
                         meter("Heat", value: game.heat,
                               color: Color(rgb: 0xf97316), barWidth: 64, a11y: "hud-heat")
+                        SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
+                                  a11y: "mute-toggle") { audio.toggleMute() }
+                        SGSButton(title: "🏆", small: true, a11y: "nav-ladder") { showLadder = true }
                         Spacer()
                     }
                 }
@@ -123,6 +129,7 @@ struct GarageView: View {
                     Spacer()
                     SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
                               a11y: "mute-toggle") { audio.toggleMute() }
+                    SGSButton(title: "🏆 Ladder", small: true, a11y: "nav-ladder") { showLadder = true }
                     SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
                     SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                 }
@@ -153,13 +160,40 @@ struct GarageView: View {
 
     // MARK: job panel
 
+    private func chip(_ text: String, color: Color, a11y: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.18))
+            .clipShape(Capsule())
+            .accessibilityIdentifier(a11y)
+    }
+
     private func jobPanel(maxHeight: CGFloat) -> some View {
         Group {
             if let c = scene.customer {
                 Panel {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("\(c.name)’s Car")
-                            .font(.system(size: 16, weight: .heavy))
+                        HStack(spacing: 8) {
+                            Text("\(c.name)’s Car")
+                                .font(.system(size: 16, weight: .heavy))
+                            let badge = GameState.archBadge(c.archetype)
+                            if !badge.isEmpty {
+                                Text(badge)
+                                    .font(.system(size: 15))
+                                    .accessibilityIdentifier("arch-badge")
+                            }
+                            Spacer()
+                            if scene.ownerWatching {
+                                chip("👁 watching", color: .sgsBad, a11y: "watch-chip")
+                            }
+                            if let left = scene.rushedRemaining {
+                                chip("⏱ \(left)s", color: left > 0 ? .sgsWarn : .sgsMuted,
+                                     a11y: "rushed-chip")
+                            }
+                        }
                         ScrollView {
                             VStack(spacing: 6) {
                                 ForEach(Array(c.parts.enumerated()), id: \.element.id) { i, p in
@@ -204,8 +238,9 @@ struct GarageView: View {
                           a11y: "fix-\(i)") {
                     scene.fixPart(i)
                 }
-                SGSButton(title: "Steal", tiny: true, tint: Color(rgb: 0x7c3aed), disabled: p.stolen,
-                          a11y: "steal-\(i)") {
+                SGSButton(title: "Steal", tiny: true,
+                          tint: scene.ownerWatching ? Color.sgsBad : Color(rgb: 0x7c3aed),
+                          disabled: p.stolen, a11y: "steal-\(i)") {
                     scene.stealPart(i)
                 }
                 if p.tier == 1 && !p.stolen {

@@ -34,6 +34,14 @@ struct RaceView: View {
                         .tracking(2)
                         .foregroundStyle(.white.opacity(0.85))
                         .shadow(color: .black.opacity(0.6), radius: 4, y: 2)
+                    if let challenge = scene.challengeText {
+                        Text(challenge)
+                            .font(.system(size: compact ? 11 : 13, weight: .heavy))
+                            .tracking(1)
+                            .foregroundStyle(Color(rgb: 0xf472b6))
+                            .shadow(color: .black.opacity(0.6), radius: 4, y: 2)
+                            .accessibilityIdentifier("pinkslip-banner")
+                    }
                 }
                 .padding(.top, compact ? 2 : 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

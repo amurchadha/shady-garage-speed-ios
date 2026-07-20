@@ -10,6 +10,7 @@
 		07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459D2610E8DE449ABE9064FC /* GarageScene.swift */; };
 		0E881E0E27E8FC50B727B4A7 /* ShadyGarageSpeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */; };
 		452F68CAB5E6C3D916B4111A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93796F6CD0BB7CB205280E5 /* SetupView.swift */; };
+		453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004507589C62AC0B83C69A01 /* LadderSheet.swift */; };
 		4FB38999747613F6C55EB702 /* BuildScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA66619143939B397757AA2 /* BuildScene.swift */; };
 		59101F89C848DEE58470911F /* SceneKit+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A46BDDD67CAFAAEEE3A8308D /* SceneKit+Helpers.swift */; };
 		59DF343A06A3D4513A43E057 /* SceneKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */; };
@@ -41,6 +42,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		004507589C62AC0B83C69A01 /* LadderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderSheet.swift; sourceTree = "<group>"; };
 		28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ShadyGarageSpeed.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		459D2610E8DE449ABE9064FC /* GarageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScene.swift; sourceTree = "<group>"; };
 		45E1A61685DCDB9414B9F918 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				B37C45FDB8489AF19C8B161F /* BuildView.swift */,
 				A004658E16FC9AC44EA805CD /* Components.swift */,
 				63A1234F03F09FBBE83276B9 /* GarageView.swift */,
+				004507589C62AC0B83C69A01 /* LadderSheet.swift */,
 				45E1A61685DCDB9414B9F918 /* MenuView.swift */,
 				5EA06D343182BF4AC7DA5633 /* RaceView.swift */,
 				58B44BF7906FFA6093EB3E32 /* ResultsView.swift */,
@@ -224,6 +227,7 @@
 				07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */,
 				C1FA8B97E66AAA53AEE13A59 /* GarageView.swift in Sources */,
 				93B83F8685CB4D20A5A8484C /* Haptics.swift in Sources */,
+				453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */,
 				CBBD77FE5BAFECBC0BCDC8CA /* MenuView.swift in Sources */,
 				777ECF5B3480A2919A27FD17 /* RaceScene.swift in Sources */,
 				993E2579CDA16989CEF51693 /* RaceView.swift in Sources */,

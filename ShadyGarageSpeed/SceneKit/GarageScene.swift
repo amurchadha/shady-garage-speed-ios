@@ -39,6 +39,24 @@ final class GarageScene: SceneController {
     private var customerWheels: [SCNNode] = []
     private var wheelSpin: Float = 0
 
+    // MARK: owner on-scene (Feature C)
+    private var owner: SCNNode?
+    private struct Walk { var node: SCNNode; var to: SCNVector3; var dur: Double; var t: Double = 0; var from: SCNVector3? = nil }
+    private var ownerWalk: Walk?
+    private var nextWatchT: Double = .infinity
+    private var watchUntilT: Double = 0
+    /// True while the owner is watching (2s glance every 4–8s): steals cost ×1.5 suspicion.
+    @Published private(set) var ownerWatching = false
+    /// Debug launch args: `-watch` pins watching on, `-nowatch` disables the cycle.
+    var forceWatch = false
+    var watchDisabled = false
+
+    // MARK: rushed archetype (Feature B)
+    private var inspectStartT: Double = 0
+    /// Seconds left of the 45s rushed bonus window; nil for non-rushed customers.
+    @Published private(set) var rushedRemaining: Int? = nil
+    static let rushedWindow: Double = 45
+
     private struct GStep { var to: SCNVector3; var yaw: Float; var dur: Double }
     private struct Tween {
         var car: SCNNode
@@ -310,23 +328,45 @@ final class GarageScene: SceneController {
         selectedPart = nil
         rage90Warned = false
         prompt = "Customer pulling in…"
+        // owner avatar idles near the bay (and sometimes watches — Feature C)
+        owner?.removeFromParentNode()
+        let av = CarFactory.makeCharacterAvatar(color: c.color)
+        av.position = SCNVector3(2.4, 0, -6.5)
+        av.eulerAngles = SCNVector3(0, -0.9, 0) // facing the parked car
+        scene.rootNode.addChildNode(av)
+        owner = av
+        ownerWalk = nil
+        nextWatchT = elapsed + Double.random(in: 4...8)
+        watchUntilT = 0
+        if ownerWatching { DispatchQueue.main.async { self.ownerWatching = false } }
         drive = Tween(car: car, steps: [
             GStep(to: SCNVector3(1.5, 0, 23.5), yaw: -Float.pi / 2, dur: 1.5),
             GStep(to: SCNVector3(0.5, 0, 5), yaw: Float.pi, dur: 1.1),
             GStep(to: SCNVector3(0, 0, -4.5), yaw: 0, dur: 1.0),
         ], onDone: { [weak self] in
+            guard let self else { return }
+            self.inspectStartT = self.elapsed
             DispatchQueue.main.async {
-                self?.jobState = "inspect"
-                self?.prompt = "Tap a part on the car, or use the job panel."
+                self.jobState = "inspect"
+                self.prompt = "Tap a part on the car, or use the job panel."
+                if self.customer?.archetype == "rushed" {
+                    self.rushedRemaining = Int(Self.rushedWindow)
+                }
             }
         })
     }
 
     private func driveOut(_ happy: Bool) {
         jobState = "leaving"
+        rushedRemaining = nil
         prompt = happy ? "Another satisfied customer!" : "…"
         clearHighlights()
         selectedPart = nil
+        // owner walks off and is removed at the end of the walk
+        if let owner {
+            ownerWalk = Walk(node: owner, to: SCNVector3(-9, 0, 4), dur: 2.2)
+            if ownerWatching { DispatchQueue.main.async { self.ownerWatching = false } }
+        }
         guard let car = customerCar else { startNextCustomer(); return }
         drive = Tween(car: car, steps: [
             GStep(to: SCNVector3(0, 0, 6), yaw: 0, dur: happy ? 1.2 : 0.7),
@@ -455,7 +495,8 @@ final class GarageScene: SceneController {
         guard jobState == "inspect", var c = customer, c.parts.indices.contains(i) else { return }
         var p = c.parts[i]
         guard !p.stolen else { return }
-        let mult = game.suspMult
+        var mult = game.suspMult * game.archSuspMult(c.archetype)
+        if ownerWatching { mult *= 1.5 } // stealing under the owner's nose
         if zone == "red" {
             addSuspicion(35 * mult)
             toasts.push("Caught fiddling! Suspicion way up.", .bad)
@@ -495,8 +536,10 @@ final class GarageScene: SceneController {
     }
 
     func finishJob() {
-        guard jobState == "inspect", jobActions >= 1 else { return }
-        let payment = Int((Double(jobTotal) * game.payMult).rounded())
+        guard jobState == "inspect", jobActions >= 1, let c = customer else { return }
+        // rushed customers pay ×1.5 only if the job finished inside the 45s window
+        let onTime = c.archetype != "rushed" || (elapsed - inspectStartT) <= Self.rushedWindow
+        let payment = Int((Double(jobTotal) * game.payMult * game.archPayMult(c.archetype, onTime: onTime)).rounded())
         game.cash += payment
         game.customersServed += 1
         game.day += 1
@@ -558,12 +601,62 @@ final class GarageScene: SceneController {
 
         processDrive(dt)
 
+        // owner walk-off tween (driveOut), then dispose
+        if var w = ownerWalk {
+            if w.from == nil { w.from = w.node.position }
+            w.t += dt / w.dur
+            let k = Float(smooth(min(1, w.t)))
+            let f = w.from!
+            w.node.position = SCNVector3(f.x + (w.to.x - f.x) * k,
+                                         f.y + (w.to.y - f.y) * k,
+                                         f.z + (w.to.z - f.z) * k)
+            if w.t >= 1 {
+                w.node.removeFromParentNode()
+                if owner === w.node { owner = nil }
+                ownerWalk = nil
+            } else {
+                ownerWalk = w
+            }
+        }
+
+        // owner watch cycle: a 2s glance every 4–8s while the car is in the bay
+        var watching = false
+        if owner != nil, mode == .play, jobState == "inspect", !watchDisabled {
+            if elapsed >= nextWatchT {
+                watchUntilT = elapsed + 2
+                nextWatchT = elapsed + Double.random(in: 4...8)
+            }
+            watching = elapsed < watchUntilT
+        }
+        if forceWatch { watching = owner != nil && mode == .play && jobState == "inspect" }
+        if watching != ownerWatching {
+            DispatchQueue.main.async { self.ownerWatching = watching }
+        }
+
+        // owner idle: bob like the friends + an occasional phone-look head tilt
+        if let owner, ownerWalk == nil, shakeT <= 0 {
+            owner.position.y = Float(abs(sin(elapsed * 2 + 0.9)) * 0.05)
+            if let head = owner.childNode(withName: "head", recursively: true) {
+                head.eulerAngles.x = elapsed.truncatingRemainder(dividingBy: 9) < 1.5 ? 0.55 : 0
+            }
+        }
+
+        // rushed countdown chip (publish on whole-second changes)
+        if jobState == "inspect", customer?.archetype == "rushed", rushedRemaining != nil {
+            let left = max(0, Int((Self.rushedWindow - (elapsed - inspectStartT)).rounded(.up)))
+            if left != rushedRemaining {
+                DispatchQueue.main.async { self.rushedRemaining = left }
+            }
+        }
+
         // angry shake
         if shakeT > 0, let car = customerCar {
             shakeT -= dt
             car.position.x = Float((Double.random(in: 0..<1) - 0.5) * 0.16)
+            owner?.position.x = 2.4 + Float((Double.random(in: 0..<1) - 0.5) * 0.16)
             if shakeT <= 0 {
                 car.position.x = 0
+                owner?.position.x = 2.4
                 DispatchQueue.main.async {
                     self.game.day += 1
                     self.game.suspicion = 0

@@ -36,6 +36,10 @@ final class ToastCenter: ObservableObject {
 final class AppState: ObservableObject {
     @Published var phase: GamePhase = .menu
     @Published var lastFinish: FinishData?
+    /// Active pink-slip challenge: ladder position (0–3) being raced, nil = normal run.
+    @Published var raceChallenge: Int?
+    /// One-time 🏆 STREET LEGEND overlay (shown over the results screen).
+    @Published var showLegendOverlay = false
 
     let game = GameState()
     let toasts = ToastCenter()
@@ -61,6 +65,8 @@ final class AppState: ObservableObject {
         raceScene.onFinish = { [weak self] data in
             guard let self else { return }
             self.lastFinish = data
+            self.raceChallenge = nil // the challenge is consumed by the run
+            if data.challenge?.becameLegend == true { self.showLegendOverlay = true }
             self.phase = .results
         }
         raceScene.onExit = { [weak self] in
@@ -108,11 +114,25 @@ final class AppState: ObservableObject {
 
     func goRace() {
         garageScene.exitPlay()
+        raceChallenge = nil
+        raceScene.challengeIndex = nil
+        phase = .race
+        raceScene.startRun()
+    }
+
+    /// Pink-slip challenge: race the rival at ladder position `pos` (0–3).
+    func startChallenge(_ pos: Int) {
+        guard GameState.ladderRival(pos) != nil else { return }
+        garageScene.exitPlay()
+        raceChallenge = pos
+        raceScene.challengeIndex = pos
         phase = .race
         raceScene.startRun()
     }
 
     func raceAgain() {
+        raceChallenge = nil
+        raceScene.challengeIndex = nil
         phase = .race
         raceScene.startRun()
     }
@@ -129,6 +149,7 @@ final class AppState: ObservableObject {
     }
 
     /// Full debug arg set: -phase <p> -tod day|sunset|night -rain on|off -autodrive
+    /// -challenge N -ladderwin -instantfinish -arch <t> -watch -nowatch
     func applyDebugArgs(_ args: [String]) {
         if let i = args.firstIndex(of: "-tod"), i + 1 < args.count {
             switch args[i + 1] {
@@ -143,8 +164,21 @@ final class AppState: ObservableObject {
             raceScene.forcedRain = v == "on" ? true : v == "off" ? false : nil
         }
         if args.contains("-autodrive") { raceScene.autoDrive = true }
+        if args.contains("-ladderwin") { raceScene.ladderWin = true }
+        if args.contains("-instantfinish") { raceScene.instantFinish = true }
+        if args.contains("-watch") { garageScene.forceWatch = true }
+        if args.contains("-nowatch") { garageScene.watchDisabled = true }
+        if let i = args.firstIndex(of: "-arch"), i + 1 < args.count {
+            game.forcedArchetype = args[i + 1]
+        }
         if let i = args.firstIndex(of: "-phase"), i + 1 < args.count {
             applyDebugPhase(args[i + 1])
+        }
+        // deep-link a pink-slip race: -phase race -challenge N (after -phase so
+        // goRace's challenge reset can't clobber it)
+        if let i = args.firstIndex(of: "-challenge"), i + 1 < args.count,
+           let pos = Int(args[i + 1]) {
+            startChallenge(pos)
         }
     }
 }

@@ -192,6 +192,7 @@ enum CarFactory {
         g.addChildNode(boxNode(0.12, 0.45, 0.14, c, 0.33, 0.8, 0))
         let head = sphereNode(radius: 0.22, color: UIColor(rgb: 0xf2c9a0), segments: 6)
         head.position.y = 1.3
+        head.name = "head"
         let capGeo = SCNCone(topRadius: 0.2, bottomRadius: 0.23, height: 0.12)
         capGeo.radialSegmentCount = 8
         capGeo.materials = [FlatMat.lit(c)]

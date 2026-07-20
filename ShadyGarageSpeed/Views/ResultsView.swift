@@ -15,24 +15,43 @@ struct ResultsView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         HStack(spacing: 10) {
-                            Text("🏁 Lap Complete!")
-                                .font(.title2.bold())
-                            if res.newBest {
-                                Text("NEW BEST!")
-                                    .font(.system(size: 12, weight: .black))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 3)
-                                    .background(Color(rgb: 0xf59e0b))
-                                    .foregroundStyle(Color(rgb: 0x0b0e14))
-                                    .clipShape(Capsule())
+                            if let ch = res.challenge {
+                                Text(ch.win ? "🏆 PINK SLIP WIN!" : "PINK SLIP LOSS")
+                                    .font(.title2.bold())
+                                    .foregroundStyle(ch.win ? Color.sgsGood : Color.sgsBad)
+                                    .accessibilityIdentifier("results-pinkslip")
+                            } else {
+                                Text("🏁 Lap Complete!")
+                                    .font(.title2.bold())
+                                if res.newBest {
+                                    Text("NEW BEST!")
+                                        .font(.system(size: 12, weight: .black))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 3)
+                                        .background(Color(rgb: 0xf59e0b))
+                                        .foregroundStyle(Color(rgb: 0x0b0e14))
+                                        .clipShape(Capsule())
+                                }
                             }
                         }
 
                         VStack(spacing: 6) {
                             resRow("Lap time", RaceScene.fmtTime(res.lap), Color.sgsText)
                             resRow("Best lap", RaceScene.fmtTime(res.best), Color.sgsText)
-                            resRow("Car value", "$\(res.value)", Color(rgb: 0xf59e0b))
-                            resRow("Prize", "+$\(res.reward)", Color.sgsGood)
+                            if res.challenge == nil {
+                                resRow("Car value", "$\(res.value)", Color(rgb: 0xf59e0b))
+                                resRow("Prize", "+$\(res.reward)", Color.sgsGood)
+                            }
+                            if let ch = res.challenge {
+                                resRow("Rival", ch.name, Color.sgsText)
+                                resRow("Target", RaceScene.fmtTime(ch.target), Color.sgsText)
+                                resRow("Margin", String(format: "%+.2fs", ch.margin),
+                                       ch.win ? Color.sgsGood : Color.sgsBad)
+                                if ch.win {
+                                    let prize = "\(GameState.tierNames[ch.prizeTier]) \(GameState.partLabels[ch.prizeType] ?? ch.prizeType) + $\(ch.purse)"
+                                    resRow("Pink-slip prize", prize, Color(rgb: 0xf472b6))
+                                }
+                            }
                         }
 
                         leaderboard(lap: res.lap)
@@ -56,6 +75,45 @@ struct ResultsView: View {
             }
         }
         .foregroundStyle(Color.sgsText)
+        .overlay {
+            if app.showLegendOverlay {
+                legendOverlay
+            }
+        }
+    }
+
+    /// One-time 🏆 STREET LEGEND overlay after the final pink-slip win.
+    private var legendOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.78).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Text("🏆")
+                    .font(.system(size: 64))
+                Text("STREET LEGEND")
+                    .font(.system(size: 28, weight: .black))
+                    .foregroundStyle(Color(rgb: 0xf59e0b))
+                    .accessibilityIdentifier("legend-overlay")
+                Text("You took every pink slip in town.")
+                    .foregroundStyle(Color.sgsMuted)
+                VStack(spacing: 6) {
+                    resRow("Days", "\(app.game.day)", Color.sgsText)
+                    resRow("Customers", "\(app.game.customersServed)", Color.sgsText)
+                    resRow("Best lap", RaceScene.fmtTime(app.game.bestLap), Color.sgsText)
+                    resRow("Cash", "$\(app.game.cash)", Color.sgsGood)
+                }
+                SGSButton(title: "Keep Playing", big: true, a11y: "legend-dismiss") {
+                    app.showLegendOverlay = false
+                }
+                .padding(.top, 6)
+            }
+            .padding(28)
+            .frame(maxWidth: 460)
+            .background(Color.sgsCard)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(RoundedRectangle(cornerRadius: 18)
+                .stroke(Color(rgb: 0xf59e0b).opacity(0.5), lineWidth: 2))
+            .padding(16)
+        }
     }
 
     private func resRow(_ label: String, _ value: String, _ color: Color) -> some View {
