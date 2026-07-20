@@ -111,7 +111,11 @@ final class RaceScene: SceneController {
     private var camFov: CGFloat = 62
     private var nosMeter: Float = 100
     private var boosting = false
+    private var nosLockout = false   // hit empty while held → locked until released & >15
+    private var wallCooldown: Double = 0
     private var publishT: Double = 0
+    private var wheels: [SCNNode] = [] // tire0..3, front two steer
+    private var wheelSpin: Float = 0
 
     init(game: GameState, toasts: ToastCenter) {
         self.game = game
@@ -519,6 +523,8 @@ final class RaceScene: SceneController {
         let car = CarFactory.makeCustomCar(carState: game.car)
         scene.rootNode.addChildNode(car)
         carMesh = car
+        wheels = (0..<4).compactMap { CarFactory.find(car, "tire\($0)") }
+        wheelSpin = 0
 
         // NOS exhaust flames (flicker while boosting)
         flames = []
@@ -566,6 +572,9 @@ final class RaceScene: SceneController {
         inputUp = false; inputDown = false; inputLeft = false; inputRight = false; inputNos = false
         nosMeter = 100
         boosting = false
+        nosLockout = false
+        wallCooldown = 0
+        sfx.engineSound(false) // safety: no stale loop from a previous run
         countT = 0; lastShown = 3; goT = 0
         raceT = 0; finishT = 0; finishFired = false; finishData = nil
         camPos = desiredCamPos()
@@ -586,6 +595,7 @@ final class RaceScene: SceneController {
         setPhase("idle")
         boosting = false
         sfx.nos(false)
+        sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
         toasts.push("Race forfeited", .warn)
         onExit?()
@@ -595,6 +605,7 @@ final class RaceScene: SceneController {
         setPhase("idle")
         boosting = false
         sfx.nos(false)
+        sfx.engineSound(false)
         DispatchQueue.main.async { self.countdownText = nil }
     }
 
@@ -609,13 +620,14 @@ final class RaceScene: SceneController {
         finishFired = false
         boosting = false
         sfx.nos(false)
+        sfx.engineSound(false)
         for f in flames { f.isHidden = true }
         let lap = raceT
         let newBest = game.bestLap == nil || lap < game.bestLap!
         let best = newBest ? lap : game.bestLap!
         if newBest { game.bestLap = lap }
         let sum = stats.speed + stats.accel + stats.handling
-        let mult = max(0.5, min(1.8, 55.0 / lap))
+        let mult = max(0.5, min(1.8, 22.0 / lap))
         let value = Int((Double(sum) * 12 * mult).rounded())
         let reward = Int((Double(value) * 0.12).rounded())
         game.carValue = value
@@ -682,6 +694,7 @@ final class RaceScene: SceneController {
                 goT = 0.9
                 DispatchQueue.main.async { self.countdownText = "GO!" }
                 sfx.beep(880)
+                sfx.engineSound(true) // engine loop starts on GO
             }
         }
 
@@ -708,8 +721,11 @@ final class RaceScene: SceneController {
                 inputNos = false
             }
 
-            // NOS boost: drains while held + moving, regens otherwise, dies at 0
-            let wantBoost = inputNos
+            // NOS boost: drains while held + moving, regens otherwise, dies at 0.
+            // Lockout: once the meter hits 0 while held, boosting cannot restart
+            // until the input is released AND the meter refilled past 15 —
+            // flames/SFX die once on empty instead of strobing at 0.
+            let wantBoost = inputNos && !nosLockout
             let canBoost = nosMeter > 0 && abs(speed) > 0.5
             let nowBoosting = wantBoost && canBoost
             if nowBoosting && !boosting { sfx.nos(true) }
@@ -717,6 +733,9 @@ final class RaceScene: SceneController {
             boosting = nowBoosting
             if boosting { nosMeter = max(0, nosMeter - 30 * Float(dt)) }
             else { nosMeter = min(100, nosMeter + 8 * Float(dt)) }
+            if inputNos && nosMeter <= 0 { nosLockout = true }
+            if nosLockout && !inputNos && nosMeter > 15 { nosLockout = false }
+            sfx.setEngineRPM(Double(abs(speed) / maxSpd))
             for f in flames {
                 f.isHidden = !boosting
                 if boosting {
@@ -762,13 +781,18 @@ final class RaceScene: SceneController {
             let nx = -t.y, nz = t.x
             var lat = (pos.x - c.x) * nx + (pos.y - c.y) * nz
 
-            // soft barrier wall
+            // soft barrier wall: the position clamp applies every frame, but the
+            // speed penalty fires at most once per 0.25s (frame-rate independent)
+            wallCooldown = max(0, wallCooldown - dt)
             if abs(lat) > Self.BARRIER_LAT {
                 let s: Float = lat > 0 ? 1 : -1
                 pos.x = c.x + nx * Self.BARRIER_LAT * s
                 pos.y = c.y + nz * Self.BARRIER_LAT * s
                 lat = Self.BARRIER_LAT * s
-                speed *= 0.5
+                if wallCooldown <= 0 {
+                    speed *= 0.5
+                    wallCooldown = 0.25
+                }
             }
 
             offTrack = abs(lat) > Self.ROAD_HALF
@@ -783,6 +807,12 @@ final class RaceScene: SceneController {
 
             carMesh?.position = SCNVector3(pos.x, 0, pos.y)
             carMesh?.eulerAngles = SCNVector3(0, yaw, 0)
+
+            // wheels: spin by speed/radius; the front two steer with the input
+            wheelSpin += speed / CarFactory.wheelRadius * Float(dt)
+            for (i, w) in wheels.enumerated() {
+                w.eulerAngles = SCNVector3(wheelSpin, i < 2 ? steer * 0.4 : 0, 0)
+            }
         }
 
         if runPhase == "finished", let car = carMesh {
@@ -793,6 +823,8 @@ final class RaceScene: SceneController {
             pos.y += fz * speed * Float(dt)
             car.position = SCNVector3(pos.x, 0, pos.y)
             car.eulerAngles = SCNVector3(0, yaw, 0)
+            wheelSpin += speed / CarFactory.wheelRadius * Float(dt)
+            for w in wheels { w.eulerAngles.x = wheelSpin }
             finishT += dt
             if finishT > 1.3 && !finishFired {
                 finishFired = true

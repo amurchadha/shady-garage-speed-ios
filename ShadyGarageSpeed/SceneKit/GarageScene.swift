@@ -34,6 +34,10 @@ final class GarageScene: SceneController {
     private var shakeT: Double = 0
     private var rage90Warned = false
     private var avatars: [SCNNode] = []
+    /// IDs of parts stolen during the current job — clawed back if the customer rages.
+    private var stolenThisJob: [String] = []
+    private var customerWheels: [SCNNode] = []
+    private var wheelSpin: Float = 0
 
     private struct GStep { var to: SCNVector3; var yaw: Float; var dur: Double }
     private struct Tween {
@@ -214,10 +218,15 @@ final class GarageScene: SceneController {
         d.t += dt / s.dur
         let k = Float(smooth(min(1, d.t)))
         let f = d.from!
+        let prev = d.car.position
         d.car.position = SCNVector3(f.x + (s.to.x - f.x) * k,
                                     f.y + (s.to.y - f.y) * k,
                                     f.z + (s.to.z - f.z) * k)
         d.car.eulerAngles.y = d.fromYaw + shortAngle(s.yaw - d.fromYaw) * k
+        // wheels roll with the drive tween (distance / radius, frame-rate independent)
+        let dx = d.car.position.x - prev.x, dz = d.car.position.z - prev.z
+        wheelSpin += sqrt(dx * dx + dz * dz) / CarFactory.wheelRadius
+        for w in customerWheels { w.eulerAngles.x = wheelSpin }
         if d.t >= 1 {
             d.car.position = s.to
             d.car.eulerAngles.y = s.yaw
@@ -245,14 +254,16 @@ final class GarageScene: SceneController {
         for _ in 0..<n where !game.inventory.isEmpty {
             game.inventory.remove(at: Int.random(in: 0..<game.inventory.count))
         }
+        let fine = Int((Double(game.cash) * 0.25).rounded()) // 25% cash fine
+        game.cash = max(0, game.cash - fine)
         game.heat = 30
         game.save()
         sfx.fail()
         Haptics.notify(.error)
         if n > 0 {
-            toasts.push("🚨 RAID! Cops seized \(n) of your parts.", .bad)
+            toasts.push("🚨 RAID! Cops seized \(n) of your parts and fined you $\(fine).", .bad)
         } else {
-            toasts.push("🚨 RAID! Cops found nothing — this time.", .warn)
+            toasts.push("🚨 RAID! Cops found no parts, but fined you $\(fine).", .warn)
         }
     }
 
@@ -274,7 +285,7 @@ final class GarageScene: SceneController {
 
     func copLayLow() {
         showCopModal = false
-        game.heat = max(0, game.heat - 40)
+        game.heat = max(0, game.heat - 25)
         game.day += 1
         game.save()
         toasts.push("You lay low. The customer drives away.", .warn)
@@ -290,10 +301,12 @@ final class GarageScene: SceneController {
         scene.rootNode.addChildNode(car)
         customerCar = car
         cachePartMats()
+        customerWheels = (0..<4).compactMap { CarFactory.find(car, "tire\($0)") }
         jobState = "arriving"
         jobTotal = 0
         jobActions = 0
         jobSteals = 0
+        stolenThisJob = []
         selectedPart = nil
         rage90Warned = false
         prompt = "Customer pulling in…"
@@ -337,6 +350,23 @@ final class GarageScene: SceneController {
         prompt = "The customer noticed something!"
         selectedPart = nil
         clearHighlights()
+        clawbackStolenParts()
+    }
+
+    /// Rage clawback: the furious customer takes back everything stolen during
+    /// this job — from inventory, and uninstalled from the car if already fitted.
+    private func clawbackStolenParts() {
+        guard !stolenThisJob.isEmpty else { return }
+        let ids = Set(stolenThisJob)
+        stolenThisJob = []
+        game.inventory.removeAll { ids.contains($0.id) }
+        for type in GameState.partTypes {
+            if let equipped = game.car.parts[type], ids.contains(equipped.id) {
+                game.car.parts[type] = nil
+            }
+        }
+        game.save()
+        toasts.push("They took their parts back!", .bad)
     }
 
     // MARK: - part highlight
@@ -432,7 +462,9 @@ final class GarageScene: SceneController {
             Haptics.notify(.error)
         } else {
             let tier = p.tier
-            game.inventory.append(game.makePart(p.type, tier))
+            let stolen = game.makePart(p.type, tier)
+            game.inventory.append(stolen)
+            stolenThisJob.append(stolen.id)
             p.tier = 1
             p.needsService = false
             p.fixed = true

@@ -109,18 +109,18 @@ final class GameState: ObservableObject {
         let color: Int
     }
     static let friends: [Friend] = [
-        Friend(name: "Rex",  tag: "Smooth Talker", desc: "+15% customer payments",      color: 0xef4444),
+        Friend(name: "Rex",  tag: "Smooth Talker", desc: "+30% customer payments",      color: 0xef4444),
         Friend(name: "Mia",  tag: "Quick Hands",   desc: "Suspicion gains reduced 25%", color: 0x22c55e),
         Friend(name: "Dex",  tag: "Parts Guru",    desc: "+$25 per Fix",                color: 0x3b82f6),
-        Friend(name: "Zara", tag: "Wheel Dealer",  desc: "+40% part sell prices",       color: 0xf59e0b),
+        Friend(name: "Zara", tag: "Wheel Dealer",  desc: "+25% part sell prices",       color: 0xf59e0b),
     ]
 
     struct Rival { let name: String; let time: Double }
     static let rivals: [Rival] = [
-        Rival(name: "Vex",          time: 58.4),
-        Rival(name: "Torque Queen", time: 62.1),
-        Rival(name: "Lugnut",       time: 66.8),
-        Rival(name: "Granny Shift", time: 75.0),
+        Rival(name: "Vex",          time: 18.5),
+        Rival(name: "Torque Queen", time: 21.5),
+        Rival(name: "Lugnut",       time: 25.5),
+        Rival(name: "Granny Shift", time: 31.0),
     ]
 
     // MARK: ids
@@ -133,12 +133,15 @@ final class GameState: ObservableObject {
 
     // MARK: perks
 
-    var payMult: Double  { characterIndex == 0 ? 1.15 : 1 }
+    var payMult: Double  { characterIndex == 0 ? 1.30 : 1 }
     var suspMult: Double { characterIndex == 1 ? 0.75 : 1 }
     var fixBonus: Int    { characterIndex == 2 ? 25 : 0 }
-    var sellMult: Double { characterIndex == 3 ? 1.4 : 1 }
+    var sellMult: Double { characterIndex == 3 ? 1.25 : 1 }
 
     // MARK: economy
+
+    /// Parts Catalog prices (Build bay): buy new parts straight to inventory.
+    static let catalogPrices: [Int: Int] = [2: 160, 3: 420, 4: 950]
 
     func chassisCost(_ L: Int) -> Int? {
         let costs = [1: 250, 2: 500, 3: 900]
@@ -217,13 +220,24 @@ final class GameState: ObservableObject {
 
     private let saveKey = "sgs_save"
 
+    /// Set by AppState; fires at most once per session when persistence fails.
+    var onSaveFailure: (() -> Void)?
+    private var saveFailureToastShown = false
+
     func save() {
         let data = SaveData(
             playerName: playerName, characterIndex: characterIndex, cash: cash, day: day,
             inventory: inventory, car: car, bestLap: bestLap, carValue: carValue,
             customersServed: customersServed, suspicion: suspicion, heat: heat, raceCount: raceCount)
-        if let json = try? JSONEncoder().encode(data) {
+        // Fail silent, but warn once — a broken save must never crash the game.
+        do {
+            let json = try JSONEncoder().encode(data)
             UserDefaults.standard.set(json, forKey: saveKey)
+        } catch {
+            if !saveFailureToastShown {
+                saveFailureToastShown = true
+                onSaveFailure?()
+            }
         }
     }
 
@@ -253,7 +267,9 @@ final class GameState: ObservableObject {
         bestLap = raw.bestLap ?? nil
         carValue = raw.carValue ?? 0
         customersServed = raw.customersServed ?? 0
-        suspicion = min(100, max(0, raw.suspicion ?? 0))
+        // Suspicion is per-customer and must NOT survive a relaunch onto a fresh
+        // customer — always start at 0 (the field stays in the save for compat).
+        suspicion = 0
         heat = min(100, max(0, raw.heat ?? 0))
         raceCount = max(0, raw.raceCount ?? 0)
     }

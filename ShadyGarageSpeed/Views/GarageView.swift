@@ -7,6 +7,7 @@ struct GarageView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var scene: GarageScene
     @ObservedObject var game: GameState
+    @ObservedObject private var audio = AudioEngine.shared
 
     var body: some View {
         GeometryReader { geo in
@@ -88,6 +89,8 @@ struct GarageView: View {
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
                         Spacer()
+                        SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
+                                  a11y: "mute-toggle") { audio.toggleMute() }
                         SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
                         SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                     }
@@ -95,9 +98,9 @@ struct GarageView: View {
                         Spacer()
                         meter("Suspicion", value: game.suspicion,
                               color: game.suspicion >= 90 ? .sgsBad : game.suspicion >= 50 ? .sgsWarn : .sgsGood,
-                              barWidth: 64)
+                              barWidth: 64, a11y: "hud-suspicion")
                         meter("Heat", value: game.heat,
-                              color: Color(rgb: 0xf97316), barWidth: 64)
+                              color: Color(rgb: 0xf97316), barWidth: 64, a11y: "hud-heat")
                         Spacer()
                     }
                 }
@@ -114,10 +117,12 @@ struct GarageView: View {
                     Spacer()
                     meter("Suspicion", value: game.suspicion,
                           color: game.suspicion >= 90 ? .sgsBad : game.suspicion >= 50 ? .sgsWarn : .sgsGood,
-                          barWidth: 60)
+                          barWidth: 60, a11y: "hud-suspicion")
                     meter("Heat", value: game.heat,
-                          color: Color(rgb: 0xf97316), barWidth: 60)
+                          color: Color(rgb: 0xf97316), barWidth: 60, a11y: "hud-heat")
                     Spacer()
+                    SGSButton(title: audio.muted ? "🔇" : "🔊", small: true,
+                              a11y: "mute-toggle") { audio.toggleMute() }
                     SGSButton(title: "🔧 Build", small: true, a11y: "nav-build") { app.goBuild() }
                     SGSButton(title: "🏁 Race", small: true, a11y: "nav-race") { app.goRace() }
                 }
@@ -125,7 +130,8 @@ struct GarageView: View {
         }
     }
 
-    private func meter(_ title: String, value: Int, color: Color, barWidth: CGFloat) -> some View {
+    private func meter(_ title: String, value: Int, color: Color, barWidth: CGFloat,
+                       a11y: String? = nil) -> some View {
         let w = barWidth
         return HStack(spacing: 5) {
             Text(title)
@@ -141,6 +147,7 @@ struct GarageView: View {
             Text("\(min(100, max(0, value)))")
                 .font(.system(size: 12, weight: .heavy))
                 .frame(minWidth: 20, alignment: .leading)
+                .accessibilityIdentifier(a11y ?? "")
         }
     }
 

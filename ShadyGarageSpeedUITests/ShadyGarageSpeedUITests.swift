@@ -125,6 +125,49 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(app.buttons["nav-build"].waitForExistence(timeout: 5))
     }
 
+    /// build bay catalog: buying a Sport engine ($160) from the Catalog tab takes
+    /// the cash ($200 → $40) and drops the part into the inventory.
+    func testCatalogBuy() throws {
+        launch(["-reset", "-phase", "build"])
+        let catalog = app.buttons["tab-catalog"]
+        XCTAssertTrue(catalog.waitForExistence(timeout: 8))
+        catalog.tap()
+        let buy = app.buttons["catalog-buy-engine-2"] // Sport engine, $160
+        XCTAssertTrue(buy.waitForExistence(timeout: 3))
+        XCTAssertTrue(buy.isEnabled, "catalog buy should be affordable with the $200 start")
+        buy.tap()
+        XCTAssertTrue(waitLabel(app.staticTexts["build-cash"], contains: "$40", timeout: 3),
+                      "cash should drop to $40, got \(app.staticTexts["build-cash"].label)")
+        app.buttons["tab-inventory"].tap()
+        XCTAssertTrue(app.buttons["install-0"].waitForExistence(timeout: 3),
+                      "bought part should appear in the inventory")
+        shot("build_catalog")
+    }
+
+    /// suspicion is per-customer: it must NOT survive an app relaunch onto a fresh
+    /// customer. Steal (any zone raises the meter), kill the app, relaunch → 0.
+    func testSuspicionResetsAfterRelaunch() throws {
+        launch(["-reset", "-phase", "garage"])
+        let prompt = app.staticTexts["garage-prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+        XCTAssertTrue(tapFirstEnabled("steal", range: 0...5), "no stealable part")
+        let swap = app.buttons["mg-swap"]
+        XCTAssertTrue(swap.waitForExistence(timeout: 3))
+        swap.tap()
+        XCTAssertTrue(swap.waitForNonExistence(timeout: 5))
+        let susp = app.staticTexts["hud-suspicion"]
+        XCTAssertTrue(susp.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(digits(susp.label) ?? 0, 0, "steal should raise suspicion")
+        app.terminate()
+
+        launch(["-phase", "garage"]) // NO -reset: the save reloads
+        XCTAssertTrue(app.staticTexts["hud-suspicion"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.staticTexts["hud-suspicion"].label, "0",
+                       "suspicion must reset to 0 after a relaunch")
+        shot("relaunch_suspicion_zero")
+    }
+
     /// landscape: garage HUD + race controls must fit sideways. Runs LAST (name sorts
     /// after the other tests) so its device rotation can't leak into them — this XCTest
     /// build mis-synthesizes tap/isHittable coordinates for the rest of a session once

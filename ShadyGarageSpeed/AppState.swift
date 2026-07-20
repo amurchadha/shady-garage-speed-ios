@@ -50,6 +50,9 @@ final class AppState: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "sgs_save") // fresh state for tests
         }
         game.load() // restore save if present (New Game overwrites on Start)
+        game.onSaveFailure = { [weak self] in
+            self?.toasts.push("⚠️ Save failed — progress may not persist.", .bad)
+        }
         if args.contains("-seedparts") {
             // deterministic inventory for tests: one tier-3 part of each type
             for t in GameState.partTypes { game.inventory.append(game.makePart(t, 3)) }

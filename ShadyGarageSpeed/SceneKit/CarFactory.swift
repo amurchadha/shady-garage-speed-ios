@@ -5,6 +5,10 @@ import SceneKit
 
 enum CarFactory {
 
+    /// Wheel radius shared by every car (SCNCylinder in the tires group) — used
+    /// to convert ground speed into wheel spin (rad = dist / radius).
+    static let wheelRadius: Float = 0.42
+
     // A customer / generic car. Exact dims/positions from web makeCar().
     static func makeCar(color: Int = 0xf87171, spoiler: Bool = false) -> SCNNode {
         let car = SCNNode()

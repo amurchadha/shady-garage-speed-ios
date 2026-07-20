@@ -35,11 +35,13 @@ Xcode know — all sources live under `ShadyGarageSpeed/` and are globbed by Xco
 
 - Customers pull into the bay. **Tap a part on the car** (or use the job panel) to inspect it.
 - **Fix** worn parts for safe cash, or **Steal** them for yourself via the timing minigame —
-  watch the **Suspicion** meter (at 100 the customer storms off) and the **Heat** meter
-  (cops visit at ≥70, raid at 100).
-- Spend cash and stolen parts in the **Build Bay** (chassis upgrades, 6 part slots).
+  watch the **Suspicion** meter (at 100 the customer storms off and takes their parts back)
+  and the **Heat** meter (cops visit at ≥70, raid at 100 — half your parts plus a 25% cash fine).
+- Spend cash and stolen parts in the **Build Bay**: chassis upgrades, 6 part slots, and a
+  **Parts Catalog** selling brand-new parts (Sport $160 / Pro $420 / Elite $950).
 - Prove it in the **time trial**: day/sunset/night conditions cycle per race, 35% rain chance,
-  NOS boost, best-lap tracking, rival leaderboard.
+  NOS boost (watch the lockout when the meter hits empty), best-lap tracking, rival leaderboard.
+- 🔊/🔇 button (garage topbar + race HUD) mutes all audio; the setting persists.
 
 ## Feature map (web → iOS)
 
@@ -83,13 +85,16 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-tod day|sunset|night` — force race time-of-day (overrides the raceCount cycle).
 - `-rain on|off` — force race weather.
 - `-autodrive` — race drives itself (holds gas, steers to the centerline); handy for mid-race screenshots.
+- `-catalog` — Build bay opens on the Catalog tab instead of Inventory.
 - `-reset` — wipe the `sgs_save` UserDefaults save on launch (fresh state; used by UI tests).
 - `-seedparts` — seed the inventory with one tier-3 part of each type (deterministic build-bay tests).
 
 ## UI tests
 
 A UI-testing target (`ShadyGarageSpeedUITests`) drives the real app end-to-end:
-garage loop (fix → steal → finish), build bay (install raises Speed), race (GAS → speed > 0 → forfeit),
+garage loop (fix → steal → finish), build bay (install raises Speed), Parts Catalog
+(buy a Sport engine → cash drops, part lands in inventory), race (GAS → speed > 0 → forfeit),
+suspicion persistence (steal → kill app → relaunch → suspicion is 0),
 and landscape layout checks of the garage HUD and race controls (`testZZZLandscape`, sorted to run
 last because this XCTest build mis-synthesizes tap/isHittable coordinates for the rest of a session
 once the device has been rotated — landscape assertions are therefore existence-based and the layout
@@ -107,8 +112,9 @@ xcodebuild test -scheme ShadyGarageSpeed \
 Accessibility identifier convention: kebab-case ids on interactive elements —
 `new-game`, `continue`, `start-day1`, `friend-card-N`, `nav-build`, `nav-race`,
 `fix-N` / `steal-N` (job rows), `finish-job`, `job-total`, `hud-day`, `hud-cash`,
-`garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
-`stat-speed|accel|handling`, `chassis-upgrade`, `install-N`, `sell-N`, `build-back`,
+`hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
+`stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
+`catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
 `race-timer`, `race-speed`, `tc-left|right|gas|brake|nos`, `forfeit`,
 `race-again`, `results-back`.
 
@@ -118,6 +124,16 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
   built its `SCNGeometryElement` from an `[Int]` index array — 8-byte indices are invalid
   (`bytesPerIndex` supports 1/2/4), so SceneKit silently never drew the road surface and the
   car appeared to sit on grass. The mesh now uses an explicit `UInt32` data-based element.
+- **Audio resilience**: `AudioEngine` observes `AVAudioSession.interruptionNotification`
+  (pauses on `.began`, `engine.prepare()` + `start()` on `.ended`/`.shouldResume`),
+  `AVAudioSession.routeChangeNotification`, and `AVAudioEngineConfigurationChange` (the
+  engine can also die on its own). Every playback call guards `engine.isRunning` and
+  restarts the engine first — SFX are fail-silent and can never crash a tap handler.
+  The session category is `.ambient` + `.mixWithOthers`, so background music keeps playing.
+- **Race audio**: a continuous engine loop (pre-rendered 60Hz saw buffer, varispeed 1–3× →
+  60–180Hz) starts on GO, tracks `speed/maxSpeed`, and stops on finish/forfeit/exit.
+- **Wheels**: all four wheels spin by `speed/radius` per frame (also during the garage
+  drive tweens, by tween distance); the front two steer at `steerInput * 0.4` rad.
 - The garage/build cameras tilt slightly in portrait so the car clears the bottom sheets.
 
 ## Persistence

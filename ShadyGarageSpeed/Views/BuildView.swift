@@ -9,6 +9,11 @@ struct BuildView: View {
     @ObservedObject var scene: BuildScene
     @ObservedObject var game: GameState
 
+    private enum BuildTab { case inventory, catalog }
+    /// Debug launch arg `-catalog` opens the Catalog tab directly (screenshots/tests).
+    @State private var tab: BuildTab =
+        ProcessInfo.processInfo.arguments.contains("-catalog") ? .catalog : .inventory
+
     var body: some View {
         GeometryReader { geo in
             let landscapePhone = geo.size.height < 520
@@ -63,6 +68,7 @@ struct BuildView: View {
                         Spacer()
                         Text("💰 $\(game.cash)")
                             .font(.system(size: 15, weight: .bold))
+                            .accessibilityIdentifier("build-cash")
                     }
 
                     VStack(spacing: 7) {
@@ -93,18 +99,31 @@ struct BuildView: View {
                         }
                     }
 
-                    Text("Inventory")
-                        .font(.system(size: 14, weight: .bold))
-                    if game.inventory.isEmpty {
-                        Text("No parts yet. Steal some from customers…")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.sgsMuted)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 10)
+                    HStack(spacing: 8) {
+                        SGSButton(title: "Inventory", ghost: tab != .inventory, small: true,
+                                  a11y: "tab-inventory") { tab = .inventory }
+                        SGSButton(title: "Catalog", ghost: tab != .catalog, small: true,
+                                  a11y: "tab-catalog") { tab = .catalog }
+                    }
+
+                    if tab == .inventory {
+                        if game.inventory.isEmpty {
+                            Text("No parts yet. Steal some from customers, or buy from the Catalog…")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.sgsMuted)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 10)
+                        } else {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(Array(game.inventory.enumerated()), id: \.element.id) { i, part in
+                                    invCard(part, index: i)
+                                }
+                            }
+                        }
                     } else {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                            ForEach(Array(game.inventory.enumerated()), id: \.element.id) { i, part in
-                                invCard(part, index: i)
+                            ForEach(GameState.partTypes, id: \.self) { type in
+                                catalogCard(type)
                             }
                         }
                     }
@@ -148,6 +167,34 @@ struct BuildView: View {
             HStack(spacing: 6) {
                 SGSButton(title: "Install", tiny: true, a11y: "install-\(index)") { scene.installPart(part.id) }
                 SGSButton(title: "Sell $\(price)", ghost: true, tiny: true, a11y: "sell-\(index)") { scene.sellPart(part.id) }
+            }
+        }
+        .padding(10)
+        .background(Color.sgsCard2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Catalog card: one part type, buy buttons for Sport/Pro/Elite tiers.
+    private func catalogCard(_ type: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(GameState.partIcons[type] ?? "")
+                    .font(.system(size: 20))
+                Text(GameState.partLabels[type] ?? type)
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+            }
+            ForEach([2, 3, 4], id: \.self) { tier in
+                let price = GameState.catalogPrices[tier] ?? 0
+                HStack {
+                    TierBadge(tier: tier)
+                    Spacer()
+                    SGSButton(title: "$\(price)", tiny: true,
+                              disabled: game.cash < price,
+                              a11y: "catalog-buy-\(type)-\(tier)") {
+                        scene.buyPart(type, tier)
+                    }
+                }
             }
         }
         .padding(10)

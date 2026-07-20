@@ -184,6 +184,21 @@ final class BuildScene: SceneController {
         toasts.push("Sold \(GameState.partLabels[part.type] ?? part.type) +$\(price)", .good)
     }
 
+    /// Parts Catalog: buy a brand-new part (tiers 2–4) straight into inventory.
+    func buyPart(_ type: String, _ tier: Int) {
+        guard GameState.partTypes.contains(type), let price = GameState.catalogPrices[tier] else { return }
+        guard game.cash >= price else {
+            toasts.push("Not enough cash (need $\(price))", .bad)
+            sfx.fail()
+            return
+        }
+        game.cash -= price
+        game.inventory.append(game.makePart(type, tier))
+        game.save()
+        sfx.cash()
+        toasts.push("Bought \(GameState.tierNames[tier]) \(GameState.partLabels[type] ?? type) -$\(price)", .good)
+    }
+
     // MARK: - frame update
 
     override func update(dt: TimeInterval) {

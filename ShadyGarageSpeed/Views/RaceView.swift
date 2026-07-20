@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RaceView: View {
     @ObservedObject var scene: RaceScene
+    @ObservedObject private var audio = AudioEngine.shared
 
     private func bind(_ kp: ReferenceWritableKeyPath<RaceScene, Bool>) -> Binding<Bool> {
         let scene = self.scene // class reference; mutate through it, not through self
@@ -48,23 +49,38 @@ struct RaceView: View {
                     .padding(.top, 8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-                // forfeit, top right
-                Button {
-                    scene.forfeit()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
-                        .background(Color.black.opacity(0.45))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 1.5))
+                // mute + forfeit, top right
+                HStack(spacing: 10) {
+                    Button {
+                        audio.toggleMute()
+                    } label: {
+                        Text(audio.muted ? "🔇" : "🔊")
+                            .font(.system(size: 15))
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.45))
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 1.5))
+                    }
+                    .accessibilityLabel("Toggle sound")
+                    .accessibilityIdentifier("mute-toggle")
+
+                    Button {
+                        scene.forfeit()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.45))
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 1.5))
+                    }
+                    .accessibilityLabel("Forfeit race")
+                    .accessibilityIdentifier("forfeit")
                 }
                 .padding(.trailing, 12)
                 .padding(.top, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .accessibilityLabel("Forfeit race")
-                .accessibilityIdentifier("forfeit")
 
                 // speed + NOS, bottom right above the touch cluster
                 VStack(alignment: .trailing, spacing: 6) {
