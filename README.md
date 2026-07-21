@@ -219,6 +219,19 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 - **Crew hire**: the 3 unchosen friends sell their perks one-time ($800/$2000/$5000);
   perks apply from chosen character OR crew, persisted.
 
+## Race presentation (graphics pass)
+
+- **Time-of-day palette** matches the web's glow-up: vibrant sunset (`#ff9e7a` sky,
+  hemi 0.85, sun 1.25, greener ground, lighter road), lifted night (hemi 0.45),
+  and gentle rain dimming (×0.88 sky / ×0.9 ground / ×0.85 road) so sunset+rain
+  stays readable. Lamp emissive 1.6, bloom per TOD, per-TOD sky-IBL intensity.
+- **Body feel**: the player car rolls into steering and pitches under accel/brake
+  (±0.05 rad, exponentially smoothed).
+- **Particle juice**: recycled-node pools (150 particles, 120 skid slots; zero
+  per-frame allocation) — launch/hard-steer tire smoke, off-track dust, barrier
+  sparks scaled by impact, NOS exhaust puffs, and 8-second skid marks on hard
+  steer/brake.
+
 ## Notes
 
 - **Race start fix**: the road ribbon (the only custom `SCNGeometry` in the app) originally

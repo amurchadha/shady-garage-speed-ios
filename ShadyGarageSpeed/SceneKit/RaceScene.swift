@@ -95,8 +95,10 @@ final class RaceScene: SceneController {
     }
     private static let tods: [TOD] = [
         TOD(name: "DAY",    sky: 0x7ec8f7, fogNear: 130, fogFar: 460, hemi: 0.95, hemiSky: 0xbfe9ff, sun: 1.15, sunColor: 0xffffff, sunPos: [30, 45, 20],   ground: 0x71c15e, road: 0x40454d),
-        TOD(name: "SUNSET", sky: 0xf2916d, fogNear: 110, fogFar: 420, hemi: 0.65, hemiSky: 0xffc9a3, sun: 1.0,  sunColor: 0xffb070, sunPos: [50, 15, -25],  ground: 0x67994e, road: 0x3d4148),
-        TOD(name: "NIGHT",  sky: 0x0e1830, fogNear: 90,  fogFar: 380, hemi: 0.32, hemiSky: 0x33415e, sun: 0.28, sunColor: 0x8fa8ff, sunPos: [-25, 45, 10],  ground: 0x2e4a30, road: 0x2b2f36),
+        // vibrant sunset (web glow-up: brighter sky/hemi/sun, greener ground, lighter road)
+        TOD(name: "SUNSET", sky: 0xff9e7a, fogNear: 120, fogFar: 440, hemi: 0.85, hemiSky: 0xffd9b8, sun: 1.25, sunColor: 0xffb070, sunPos: [50, 15, -25],  ground: 0x74a85c, road: 0x454a52),
+        // night murk lifted: hemisphere raised (web 0.32 → 0.45), lighter hemi sky
+        TOD(name: "NIGHT",  sky: 0x0e1830, fogNear: 90,  fogFar: 380, hemi: 0.45, hemiSky: 0x3d4f74, sun: 0.28, sunColor: 0x8fa8ff, sunPos: [-25, 45, 10],  ground: 0x2e4a30, road: 0x2b2f36),
     ]
     private var todIndex = 0
     private var raining = false
@@ -182,6 +184,34 @@ final class RaceScene: SceneController {
     /// Pink-slip ghost: translucent rival car pacing the target lap time.
     private var ghost: SCNNode?
     private var ghostTime: Double = 0
+
+    // body roll/pitch (mirrors web: roll into steering, pitch under accel/brake)
+    private var bodyRoll: Float = 0
+    private var bodyPitch: Float = 0
+    private var prevSpeed: Float = 0
+
+    // MARK: - particle juice (recycled-node pools, allocation-free, ~150 cap)
+
+    private struct FXParticle {
+        var node: SCNNode
+        var vel = SCNVector3(0, 0, 0)
+        var life: Float = 0
+        var maxLife: Float = 1
+        var baseScale: Float = 1
+        var grow: Float = 0.6
+        var active = false
+    }
+    private var fx: [FXParticle] = []
+    private var fxCursor = 0
+    private var nosPuffT: Float = 0
+    private var smokeT: Float = 0
+    private var dustT: Float = 0
+    private enum FXKind { case smoke, dust, spark, nosPuff }
+
+    // skid marks: ring buffer of dark translucent quads, fade over ~8s
+    private var skids: [(node: SCNNode, age: Float, active: Bool)] = []
+    private var skidCursor = 0
+    private var skidT: Float = 0
 
     init(game: GameState, toasts: ToastCenter) {
         self.game = game
@@ -511,7 +541,7 @@ final class RaceScene: SceneController {
         let poleTemplate = SCNNode(geometry: poleGeo)
         poleTemplate.castsShadow = false
         let headTemplate = boxNode(0.9, 0.35, 0.9, UIColor(rgb: 0xffe9b0), casts: false)
-        headTemplate.geometry?.materials = [FlatMat.emissive(UIColor(rgb: 0xffd77a), 1.2)]
+        headTemplate.geometry?.materials = [FlatMat.emissive(UIColor(rgb: 0xffd77a), 1.6)] // web glow-up: 1.2 → 1.6
         var lk = 0
         var li = 0
         while li < Self.SAMPLES {
@@ -547,6 +577,88 @@ final class RaceScene: SceneController {
         }
         rainGroup.isHidden = true
         scene.rootNode.addChildNode(rainGroup)
+
+        // particle + skid pools (recycled — nothing is allocated per frame)
+        for _ in 0..<150 {
+            let n = boxNode(0.22, 0.22, 0.22, UIColor(white: 0.9, alpha: 1), 0, -10, 0,
+                            unlit: true, casts: false)
+            n.isHidden = true
+            scene.rootNode.addChildNode(n)
+            fx.append(FXParticle(node: n))
+        }
+        for _ in 0..<120 {
+            let n = boxNode(0.3, 0.012, 0.7, UIColor(rgb: 0x14181f), 0, -10, 0,
+                            unlit: true, casts: false)
+            n.isHidden = true
+            n.opacity = 0
+            scene.rootNode.addChildNode(n)
+            skids.append((node: n, age: 0, active: false))
+        }
+    }
+
+    // MARK: - particle juice emit/update (allocation-free)
+
+    private func tintFX(_ n: SCNNode, _ hex: Int) {
+        n.geometry?.materials.first?.diffuse.contents = UIColor(rgb: hex)
+    }
+
+    private func emitFX(_ kind: FXKind, at p: SCNVector3, count: Int) {
+        for _ in 0..<count {
+            let i = fxCursor
+            fxCursor = (fxCursor + 1) % fx.count
+            var e = fx[i]
+            e.active = true
+            e.life = 0
+            e.grow = 0.6
+            switch kind {
+            case .smoke:
+                e.maxLife = Float.random(in: 0.7...1.2)
+                e.baseScale = Float.random(in: 0.8...1.4)
+                e.vel = SCNVector3(Float.random(in: -1.5...1.5), Float.random(in: 1...3),
+                                   Float.random(in: -1.5...1.5))
+                tintFX(e.node, 0xd6dbe3)
+            case .dust:
+                e.maxLife = Float.random(in: 0.5...0.9)
+                e.baseScale = Float.random(in: 0.7...1.2)
+                e.vel = SCNVector3(Float.random(in: -2...2), Float.random(in: 0.8...2.2),
+                                   Float.random(in: -2...2))
+                tintFX(e.node, 0xc2a878)
+            case .spark:
+                e.maxLife = Float.random(in: 0.25...0.45)
+                e.baseScale = Float.random(in: 0.4...0.7)
+                e.grow = -0.3
+                e.vel = SCNVector3(Float.random(in: -7...7), Float.random(in: 2...7),
+                                   Float.random(in: -7...7))
+                tintFX(e.node, 0xffb347)
+            case .nosPuff:
+                e.maxLife = Float.random(in: 0.25...0.4)
+                e.baseScale = Float.random(in: 0.5...0.9)
+                e.vel = SCNVector3(Float.random(in: -0.5...0.5), Float.random(in: 0.3...0.9),
+                                   Float.random(in: -0.5...0.5))
+                tintFX(e.node, 0x9fdcff)
+            }
+            e.node.position = p
+            e.node.opacity = 1
+            e.node.scale = SCNVector3(e.baseScale, e.baseScale, e.baseScale)
+            e.node.isHidden = false
+            fx[i] = e
+        }
+    }
+
+    private func laySkid() {
+        let fx = sin(yaw), fz = cos(yaw)
+        for side in [Float(-0.98), Float(0.98)] {
+            let i = skidCursor
+            skidCursor = (skidCursor + 1) % skids.count
+            let wx = pos.x - fz * side - fx * 1.45 // rear-wheel ground spot, car-local
+            let wz = pos.y + fx * side - fz * 1.45
+            skids[i].node.position = SCNVector3(wx, 0.035, wz)
+            skids[i].node.eulerAngles = SCNVector3(0, yaw, 0)
+            skids[i].node.opacity = 0.5
+            skids[i].node.isHidden = false
+            skids[i].age = 0
+            skids[i].active = true
+        }
     }
 
     // MARK: - conditions
@@ -558,27 +670,29 @@ final class RaceScene: SceneController {
         game.save()
         let c = Self.tods[todIndex]
 
-        let sky = raining ? shade(c.sky, 0.72) : UIColor(rgb: c.sky)
+        // rain dims ~12% sky / 10% ground / 15% road (web glow-up: stays readable)
+        let sky = raining ? shade(c.sky, 0.88) : UIColor(rgb: c.sky)
         scene.background.contents = sky
         scene.fogColor = sky
         scene.fogStartDistance = c.fogNear
         scene.fogEndDistance = c.fogFar
 
-        // sky IBL for the PBR materials, scaled per time-of-day (+ rain dim)
-        applySkyEnvironment(scene, intensity: (todIndex == 0 ? 1.0 : todIndex == 1 ? 0.55 : 0.15)
-                                              * (raining ? 0.75 : 1))
+        // sky IBL for the PBR materials, scaled per time-of-day (+ reduced rain dim)
+        applySkyEnvironment(scene, intensity: (todIndex == 0 ? 1.0 : todIndex == 1 ? 0.7 : 0.25)
+                                              * (raining ? 0.85 : 1))
         // bloom per TOD: subtle by day, glowing lamps/flames at night
         cameraNode.camera?.bloomIntensity = todIndex == 0 ? 0.2 : todIndex == 1 ? 0.5 : 0.9
 
-        hemiLight.intensity = c.hemi * 1000 * (raining ? 0.85 : 1)
+        hemiLight.intensity = c.hemi * 1000 * (raining ? 0.9 : 1)
         hemiLight.color = UIColor(rgb: c.hemiSky)
         dirLight.intensity = c.sun * 1000
         dirLight.color = UIColor(rgb: c.sunColor)
         sunOffset = c.sunPos
 
-        groundMat.diffuse.contents = raining ? shade(c.ground, 0.8) : UIColor(rgb: c.ground)
+        groundMat.diffuse.contents = raining ? shade(c.ground, 0.9) : UIColor(rgb: c.ground)
         groundMat.ambient.contents = groundMat.diffuse.contents
-        roadMat.diffuse.contents = UIColor(rgb: raining ? 0x33373d : c.road)
+        let roadColor = UIColor(rgb: c.road)
+        roadMat.diffuse.contents = raining ? shade(c.road, 0.85) : roadColor
         roadMat.ambient.contents = roadMat.diffuse.contents
 
         lampGroup.isHidden = todIndex != 2
@@ -668,6 +782,11 @@ final class RaceScene: SceneController {
         wallCooldown = 0
         countT = 0; lastShown = 3; goT = 0
         raceT = 0; finishT = 0; finishFired = false; finishData = nil
+        bodyRoll = 0; bodyPitch = 0; prevSpeed = 0
+        nosPuffT = 0; smokeT = 0; dustT = 0; skidT = 0
+        // clear last run's particles + tire marks
+        for i in fx.indices { fx[i].active = false; fx[i].node.isHidden = true }
+        for i in skids.indices { skids[i].active = false; skids[i].node.isHidden = true }
         camPos = desiredCamPos()
         camFov = 62
         setPhaseLocked(.count)
@@ -857,6 +976,36 @@ final class RaceScene: SceneController {
             }
         }
 
+        // particle juice: age, move, grow, fade (fixed arrays, no allocation)
+        for i in fx.indices where fx[i].active {
+            var e = fx[i]
+            e.life += Float(dt)
+            if e.life >= e.maxLife {
+                e.active = false
+                e.node.isHidden = true
+            } else {
+                let k = e.life / e.maxLife
+                e.node.position = SCNVector3(e.node.position.x + e.vel.x * Float(dt),
+                                             e.node.position.y + e.vel.y * Float(dt),
+                                             e.node.position.z + e.vel.z * Float(dt))
+                e.node.opacity = CGFloat(1 - k * k)
+                let s = e.baseScale * max(0.01, 1 + e.grow * k)
+                e.node.scale = SCNVector3(s, s, s)
+            }
+            fx[i] = e
+        }
+        // skid marks age out over ~8s
+        for i in skids.indices where skids[i].active {
+            skids[i].age += Float(dt)
+            let a = skids[i].age
+            if a >= 8 {
+                skids[i].active = false
+                skids[i].node.isHidden = true
+            } else {
+                skids[i].node.opacity = CGFloat(0.5 * (1 - a / 8))
+            }
+        }
+
         if phase == .count {
             countT += dt
             if countT < 3 {
@@ -976,7 +1125,10 @@ final class RaceScene: SceneController {
                 pos.y = c.y + nz * Self.BARRIER_LAT * s
                 lat = Self.BARRIER_LAT * s
                 if wallCooldown <= 0 {
-                    Haptics.barrierThud(min(1, abs(speed) / maxSpd)) // thud scaled by impact
+                    let impact = min(1, abs(speed) / maxSpd)
+                    Haptics.barrierThud(impact) // thud scaled by impact
+                    emitFX(.spark, at: SCNVector3(pos.x, 0.6, pos.y),
+                           count: 3 + Int(6 * impact)) // sparks scaled by impact
                     speed *= 0.5
                     wallCooldown = 0.25
                 }
@@ -1009,13 +1161,58 @@ final class RaceScene: SceneController {
                 ghost.eulerAngles = SCNVector3(0, atan2(gt.x, gt.y), 0)
             }
 
+            // body roll into the turn + pitch under accel/brake (±0.05 rad, smoothed)
+            let rollTarget = -steer * min(1, abs(speed) / 12) * 0.05
+            let longAcc = (speed - prevSpeed) / max(Float(dt), 0.0001)
+            prevSpeed = speed
+            let pitchTarget = max(-0.05, min(0.05, -longAcc * 0.004))
+            let bodyK = Float(1 - exp(-8 * dt))
+            bodyRoll += (rollTarget - bodyRoll) * bodyK
+            bodyPitch += (pitchTarget - bodyPitch) * bodyK
+
             carMesh?.position = SCNVector3(pos.x, 0, pos.y)
-            carMesh?.eulerAngles = SCNVector3(0, yaw, 0)
+            carMesh?.eulerAngles = SCNVector3(bodyPitch, yaw, bodyRoll)
 
             // wheels: spin by speed/radius; the front two steer with the input
             wheelSpin += speed / CarFactory.wheelRadius * Float(dt)
             for (i, w) in wheels.enumerated() {
                 w.eulerAngles = SCNVector3(wheelSpin, i < 2 ? steer * 0.4 : 0, 0)
+            }
+
+            // particle emitters (rate-limited, recycled pools)
+            let rearPos = SCNVector3(pos.x - fx * 1.6, 0.25, pos.y - fz * 1.6)
+            if boosting {
+                nosPuffT += Float(dt)
+                if nosPuffT >= 0.08 {
+                    nosPuffT = 0
+                    emitFX(.nosPuff, at: rearPos, count: 2)
+                }
+            }
+            // tire smoke: hard launch from stop, or hard steer at speed
+            let launching = inputUp && abs(speed) < 6 && !offTrack
+            let hardSteer = steer != 0 && abs(speed) > 0.65 * maxSpd
+            if (launching || hardSteer) && smokeT >= 0.12 {
+                smokeT = 0
+                emitFX(.smoke, at: rearPos, count: 2)
+            } else {
+                smokeT += Float(dt)
+            }
+            // off-track dust
+            if offTrack && abs(speed) > 5 {
+                dustT += Float(dt)
+                if dustT >= 0.1 {
+                    dustT = 0
+                    emitFX(.dust, at: rearPos, count: 2)
+                }
+            }
+            // skid marks on hard steer / hard brake at speed
+            let hardBrake = inputDown && abs(speed) > 0.4 * maxSpd
+            if (hardSteer || hardBrake) && !offTrack {
+                skidT += Float(dt)
+                if skidT >= 0.05 {
+                    skidT = 0
+                    laySkid()
+                }
             }
         }
 
@@ -1025,8 +1222,10 @@ final class RaceScene: SceneController {
             let fx = sin(yaw), fz = cos(yaw)
             pos.x += fx * speed * Float(dt)
             pos.y += fz * speed * Float(dt)
+            bodyRoll *= Float(exp(-6 * dt)) // body settles as we coast out
+            bodyPitch *= Float(exp(-6 * dt))
             car.position = SCNVector3(pos.x, 0, pos.y)
-            car.eulerAngles = SCNVector3(0, yaw, 0)
+            car.eulerAngles = SCNVector3(bodyPitch, yaw, bodyRoll)
             wheelSpin += speed / CarFactory.wheelRadius * Float(dt)
             for w in wheels { w.eulerAngles.x = wheelSpin }
             finishT += dt
