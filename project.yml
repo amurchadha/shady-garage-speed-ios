@@ -1,6 +1,6 @@
 name: ShadyGarageSpeed
 options:
-  bundleIdPrefix: com.amurchadha
+  bundleIdPrefix: com.noshu
   createIntermediateGroups: true
 targets:
   ShadyGarageSpeed:
@@ -11,7 +11,7 @@ targets:
       - path: ShadyGarageSpeed
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amurchadha.shadygaragespeed
+        PRODUCT_BUNDLE_IDENTIFIER: com.noshu.shadygaragespeed
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_FILE: ShadyGarageSpeed/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -32,7 +32,7 @@ targets:
       - target: ShadyGarageSpeed
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.amurchadha.shadygaragespeed.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.noshu.shadygaragespeed.uitests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGNING_ALLOWED: NO
         TEST_TARGET_NAME: ShadyGarageSpeed
