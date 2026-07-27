@@ -470,7 +470,8 @@ final class GameState: ObservableObject {
             raceCount: raceCount, ladder: ladder, legend: legend,
             heatHintShown: heatHintShown, copHintShown: copHintShown,
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
-            elitePity: elitePity, bestLaps: bestLaps)
+            elitePity: elitePity, bestLaps: bestLaps,
+            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000))
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -479,6 +480,7 @@ final class GameState: ObservableObject {
                 UserDefaults.standard.set(prev, forKey: prevSaveKey)
             }
             UserDefaults.standard.set(json, forKey: saveKey)
+            CloudSync.shared.push(json: json) // #52 iCloud (no-op unless enabled)
         } catch {
             if !saveFailureToastShown {
                 saveFailureToastShown = true
@@ -517,7 +519,8 @@ final class GameState: ObservableObject {
             raceCount: raceCount, ladder: ladder, legend: legend,
             heatHintShown: heatHintShown, copHintShown: copHintShown,
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
-            elitePity: elitePity, bestLaps: bestLaps)
+            elitePity: elitePity, bestLaps: bestLaps,
+            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000))
         let payload = SaveExport(app: "shady-garage-speed", saveVersion: 2,
                                  exportedAt: ISO8601DateFormatter().string(from: Date()), data: data)
         let encoder = JSONEncoder()
@@ -604,6 +607,8 @@ struct SaveData: Codable {
     var tutorialSeen: Bool
     var elitePity: Int
     var bestLaps: [String: Double]
+    /// #52 iCloud LWW merge clock (ms since epoch; 0 in legacy saves).
+    var savedAtMs: Int64
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -629,6 +634,8 @@ struct RawSave: Codable {
     var tutorialSeen: Bool?
     var elitePity: Int?
     var bestLaps: [String: Double]?
+    /// #52 merge clock; absent (nil → 0) in legacy saves.
+    var savedAtMs: Int64?
 }
 
 struct RawCar: Codable {

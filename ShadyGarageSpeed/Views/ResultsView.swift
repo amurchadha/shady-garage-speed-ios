@@ -5,6 +5,8 @@ import SwiftUI
 
 struct ResultsView: View {
     @EnvironmentObject var app: AppState
+    @ObservedObject private var gc = GCManager.shared // #51 (stub publishes false when off)
+    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
         SceneKitView(controller: app.raceScene, fps: 30, thermal: app.thermalLimited)
@@ -20,7 +22,8 @@ struct ResultsView: View {
                     }
                 }
                 .dynamicTypeSize(...DynamicTypeSize.accessibility3) // grows to A11y XL
-                .presentationDetents([.large])
+                // #53 iPad: open as a centered medium form (expandable), not a wall
+                .presentationDetents(hSize == .regular ? [.medium, .large] : [.large])
                 .presentationBackground(.ultraThinMaterial)
                 .interactiveDismissDisabled(true) // navigate via the buttons only
             }
@@ -80,6 +83,13 @@ struct ResultsView: View {
                     SGSButton(title: "📷", ghost: true, a11y: "photo-mode",
                               label: "Photo mode", hint: "Orbit the car with the UI hidden") {
                         app.enterPhotoMode()
+                    }
+                    if gc.authenticated {
+                        // #51 Game Center dashboard (hidden until signed in)
+                        SGSButton(title: "🏆", ghost: true, a11y: "results-leaderboard",
+                                  label: "Leaderboards", hint: "Open Game Center") {
+                            gc.showDashboard()
+                        }
                     }
                     Spacer()
                     SGSButton(title: "Back to Garage", ghost: true, a11y: "results-back") { app.backToGarage() }

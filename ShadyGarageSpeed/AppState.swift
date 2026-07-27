@@ -72,11 +72,16 @@ final class AppState: ObservableObject {
                 sfx.musicStart("garage")
                 sfx.shopAmbience(phase == .garage) // #39 shop sounds under the radio
             }
+            // #59 orientation lock follows the phase (Landscape-race mode)
+            OrientationLock.inRace = (phase == .race)
+            OrientationLock.apply()
         }
     }
     @Published var lastFinish: FinishData?
     /// Pre-race track-select sheet (opened by the garage topbar Race button).
     @Published var showTrackSheet = false
+    /// #59 orientation setting mirror so Settings rows repaint on change.
+    @Published var orientationMode = OrientationLock.mode
     /// Results photo mode: UI hidden, slow orbit of the parked car (web #25).
     @Published var showPhotoMode = false {
         didSet {
@@ -129,6 +134,9 @@ final class AppState: ObservableObject {
             guard let self else { return }
             self.lastFinish = data
             self.raceChallenge = nil // the challenge is consumed by the run
+            if data.reward > 0 || (data.challenge?.win == true) {
+                Haptics.cashCascade() // #56 prize payout cascade
+            }
             if ProcessInfo.processInfo.arguments.contains("-confetti") {
                 self.raceScene.confettiBurst() // debug: force a confetti burst
             }
@@ -171,6 +179,41 @@ final class AppState: ObservableObject {
         }
 
         AudioEngine.shared.musicStart("garage") // garage radio from the menu
+
+        // #54/#58 deep links (quick action, App Intents) — warm + cold start
+        NotificationCenter.default.addObserver(forName: DeepLinkCenter.name, object: nil,
+                                               queue: .main) { [weak self] note in
+            if let link = note.userInfo?["link"] as? String { self?.handleDeepLink(link) }
+        }
+        if let link = DeepLinkCenter.pending {
+            DeepLinkCenter.pending = nil
+            DispatchQueue.main.async { self.handleDeepLink(link) }
+        }
+
+        // #52 iCloud save sync (compiled out unless ICLOUD_ENABLED — see project.yml)
+        CloudSync.shared.onMerged = { [weak self] in
+            guard let self else { return }
+            self.game.load() // blob already written by CloudSync; apply it in-memory
+            self.toasts.push("Synced from your other device", .good)
+        }
+        CloudSync.shared.start()
+
+        // #51 Game Center (compiled out unless GAMECENTER_ENABLED — see project.yml)
+        GCManager.shared.authenticate()
+    }
+
+    /// #54 quick action / #58 App Intent: "track-select" — land in the garage with
+    /// the track picker up. Mid-race links are ignored; without a save there is no
+    /// car to race, so setup opens instead.
+    func handleDeepLink(_ link: String) {
+        guard link == "track-select", phase != .race else { return }
+        if phase == .menu || phase == .setup {
+            guard game.hasSave() else { goSetup(); return }
+            continueGame()
+        } else if phase != .garage {
+            backToGarage()
+        }
+        goRace() // opens the track-select sheet
     }
 
     // MARK: navigation

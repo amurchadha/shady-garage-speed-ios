@@ -7,9 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		069AA4137D69754351246E18 /* ShadyGarageSpeedWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8889BDCB06EF6B09A28FFADD /* ShadyGarageSpeedWidget.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459D2610E8DE449ABE9064FC /* GarageScene.swift */; };
 		0E881E0E27E8FC50B727B4A7 /* ShadyGarageSpeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */; };
 		3BA53E47E274A193B241BE1D /* SettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FCAFFB2A7790F7D925E3AFA /* SettingsSheet.swift */; };
+		3C11CA49EA3528BF4461C97A /* RaceLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B02FFEEE432F5D872355B2 /* RaceLiveActivity.swift */; };
 		452F68CAB5E6C3D916B4111A /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93796F6CD0BB7CB205280E5 /* SetupView.swift */; };
 		453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004507589C62AC0B83C69A01 /* LadderSheet.swift */; };
 		4D6E3AD33AE1C47F97623D85 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33078A13FE42E1C4060A0E0F /* Assets.xcassets */; };
@@ -18,24 +20,42 @@
 		59DF343A06A3D4513A43E057 /* SceneKitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */; };
 		5EB0488DF7401F848616ADF3 /* ShadyGarageSpeedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */; };
 		5EB5EE2D2AFB4D1CD1DD667C /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A004658E16FC9AC44EA805CD /* Components.swift */; };
+		6070CD4666C5576E0B549896 /* LugnutShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2AA94654D698B034881DBD /* LugnutShared.swift */; };
 		60F70D144A82295BA080ACFA /* StealMinigameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C43E9D0AEDB0DC640ABCC3 /* StealMinigameView.swift */; };
 		6F42A838DC40DF05277A3ACE /* TrackSelectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11981C15CB770240F1FA3978 /* TrackSelectSheet.swift */; };
 		70F55A64EFD27757CD01DB52 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B44BF7906FFA6093EB3E32 /* ResultsView.swift */; };
+		77258F5F26631B80EE8CCF97 /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8AE39419A384878D7F699F /* AppIntents.swift */; };
 		777ECF5B3480A2919A27FD17 /* RaceScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC12FA2EB91307ACE9F87CFA /* RaceScene.swift */; };
+		786E15B6729257CC5E8B3514 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FFBBEF8DB7DF347C1FA8F2C /* LiveActivityManager.swift */; };
 		7C1C3F746E44CD9DB4C437AC /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C53723B204C05D7AABF1C4 /* GameState.swift */; };
 		82CA75FCE9D274F496870BD8 /* BuildView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37C45FDB8489AF19C8B161F /* BuildView.swift */; };
+		8DED800AB3389DD82DD2880C /* RaceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F32B1615854AD778676FB /* RaceActivityAttributes.swift */; };
+		90CF04797DEE64BCE76CB2E4 /* ShadyGarageSpeedWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699E843AD1A80F239F14AB4D /* ShadyGarageSpeedWidgetBundle.swift */; };
 		93B83F8685CB4D20A5A8484C /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A6AA1BE9E87CF2737251E1F /* Haptics.swift */; };
 		993E2579CDA16989CEF51693 /* RaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EA06D343182BF4AC7DA5633 /* RaceView.swift */; };
+		9B41EA52AF73C9A3A8596C34 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89BE1AA28555A2B51E31AA9 /* AppDelegate.swift */; };
 		AC4689B6A77402F61ECC5861 /* CarFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF616B871CFAA2DD05E0F4F3 /* CarFactory.swift */; };
 		C1FA8B97E66AAA53AEE13A59 /* GarageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A1234F03F09FBBE83276B9 /* GarageView.swift */; };
+		C2F920075D836523EA4193C8 /* CloudSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0061D71E13CC0AC631B3DECB /* CloudSync.swift */; };
 		CBBD77FE5BAFECBC0BCDC8CA /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45E1A61685DCDB9414B9F918 /* MenuView.swift */; };
+		D2650A63C1AC11C566FC1A48 /* LugnutWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956317B391BCE7D2719E4EAA /* LugnutWidget.swift */; };
+		D4A12E429F4DF74633F0D61D /* GCManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC54A88C49A452FC64BCE57 /* GCManager.swift */; };
 		D7A44B98C8D63324A6B28133 /* AudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10643CED316BCBF83ABB389 /* AudioEngine.swift */; };
 		DAEBEA559F993B607B89758A /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A59B051281AC8B52D24E1E6 /* AppState.swift */; };
 		E57BC40DD9936E725E661F5C /* GamePhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC054D87C37CF71468D8AE89 /* GamePhase.swift */; };
+		E65159FD5453DB7856AC0BA4 /* LugnutShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2AA94654D698B034881DBD /* LugnutShared.swift */; };
 		F2C1204DE6922D67F7D68935 /* HireSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75990D83AD6B474A014C121B /* HireSheet.swift */; };
+		FBEE90CF9643ABFB555D1C1C /* RaceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F32B1615854AD778676FB /* RaceActivityAttributes.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		5361943E11BAFAEB9D827F0B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 11F2D14CBD16F0C1B5ED095A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ED6BE31080A547C8E7277B4B;
+			remoteInfo = ShadyGarageSpeedWidget;
+		};
 		ADBEB7419C8442E2CC067C65 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 11F2D14CBD16F0C1B5ED095A /* Project object */;
@@ -45,32 +65,60 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		6E061A9B2E5EB089DD9EB5CB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				069AA4137D69754351246E18 /* ShadyGarageSpeedWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		004507589C62AC0B83C69A01 /* LadderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderSheet.swift; sourceTree = "<group>"; };
+		0061D71E13CC0AC631B3DECB /* CloudSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSync.swift; sourceTree = "<group>"; };
 		11981C15CB770240F1FA3978 /* TrackSelectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackSelectSheet.swift; sourceTree = "<group>"; };
 		28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ShadyGarageSpeed.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		293D9A25A967EEADF48DD564 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		33078A13FE42E1C4060A0E0F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3C2AA94654D698B034881DBD /* LugnutShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LugnutShared.swift; sourceTree = "<group>"; };
 		459D2610E8DE449ABE9064FC /* GarageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScene.swift; sourceTree = "<group>"; };
 		45E1A61685DCDB9414B9F918 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 		4FCAFFB2A7790F7D925E3AFA /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
 		58B44BF7906FFA6093EB3E32 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		5D01AD0FA2819E69DD0709B8 /* ShadyGarageSpeedWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShadyGarageSpeedWidget.entitlements; sourceTree = "<group>"; };
 		5EA06D343182BF4AC7DA5633 /* RaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceView.swift; sourceTree = "<group>"; };
 		63A1234F03F09FBBE83276B9 /* GarageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageView.swift; sourceTree = "<group>"; };
 		677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneKitView.swift; sourceTree = "<group>"; };
+		699E843AD1A80F239F14AB4D /* ShadyGarageSpeedWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedWidgetBundle.swift; sourceTree = "<group>"; };
+		6FFBBEF8DB7DF347C1FA8F2C /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
 		75990D83AD6B474A014C121B /* HireSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HireSheet.swift; sourceTree = "<group>"; };
 		7A59B051281AC8B52D24E1E6 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		8889BDCB06EF6B09A28FFADD /* ShadyGarageSpeedWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShadyGarageSpeedWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A6AA1BE9E87CF2737251E1F /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		90B02FFEEE432F5D872355B2 /* RaceLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceLiveActivity.swift; sourceTree = "<group>"; };
+		956317B391BCE7D2719E4EAA /* LugnutWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LugnutWidget.swift; sourceTree = "<group>"; };
 		A004658E16FC9AC44EA805CD /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		A46BDDD67CAFAAEEE3A8308D /* SceneKit+Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SceneKit+Helpers.swift"; sourceTree = "<group>"; };
 		AF616B871CFAA2DD05E0F4F3 /* CarFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarFactory.swift; sourceTree = "<group>"; };
 		B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedApp.swift; sourceTree = "<group>"; };
 		B37C45FDB8489AF19C8B161F /* BuildView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildView.swift; sourceTree = "<group>"; };
 		B58D89C89A4D57C368AD85CB /* ShadyGarageSpeedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShadyGarageSpeedUITests.swift; sourceTree = "<group>"; };
+		BDC54A88C49A452FC64BCE57 /* GCManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GCManager.swift; sourceTree = "<group>"; };
 		C5C43E9D0AEDB0DC640ABCC3 /* StealMinigameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StealMinigameView.swift; sourceTree = "<group>"; };
 		D1D248B685BC088200F0EDA5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D6C53723B204C05D7AABF1C4 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameState.swift; sourceTree = "<group>"; };
+		D89BE1AA28555A2B51E31AA9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		DC054D87C37CF71468D8AE89 /* GamePhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GamePhase.swift; sourceTree = "<group>"; };
+		DC1F32B1615854AD778676FB /* RaceActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceActivityAttributes.swift; sourceTree = "<group>"; };
+		DF8AE39419A384878D7F699F /* AppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntents.swift; sourceTree = "<group>"; };
 		E10643CED316BCBF83ABB389 /* AudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngine.swift; sourceTree = "<group>"; };
+		E6A79957CC6DCAA2E44AE1E9 /* ShadyGarageSpeed.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShadyGarageSpeed.entitlements; sourceTree = "<group>"; };
 		E93796F6CD0BB7CB205280E5 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		EEA66619143939B397757AA2 /* BuildScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildScene.swift; sourceTree = "<group>"; };
 		FC12FA2EB91307ACE9F87CFA /* RaceScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaceScene.swift; sourceTree = "<group>"; };
@@ -98,6 +146,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		2F382B956889D6EE7A3C0073 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				3C2AA94654D698B034881DBD /* LugnutShared.swift */,
+				DC1F32B1615854AD778676FB /* RaceActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		35889C5F53F95964C072DF75 /* ShadyGarageSpeedUITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -111,6 +168,7 @@
 			children = (
 				50AB4B34462B9CDF4AF820CF /* ShadyGarageSpeed */,
 				35889C5F53F95964C072DF75 /* ShadyGarageSpeedUITests */,
+				803FB0730825D5FF69FF4F2B /* ShadyGarageSpeedWidget */,
 				8356C697EB2CE040DB153974 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -118,18 +176,37 @@
 		50AB4B34462B9CDF4AF820CF /* ShadyGarageSpeed */ = {
 			isa = PBXGroup;
 			children = (
+				D89BE1AA28555A2B51E31AA9 /* AppDelegate.swift */,
+				DF8AE39419A384878D7F699F /* AppIntents.swift */,
 				7A59B051281AC8B52D24E1E6 /* AppState.swift */,
 				33078A13FE42E1C4060A0E0F /* Assets.xcassets */,
 				E10643CED316BCBF83ABB389 /* AudioEngine.swift */,
+				0061D71E13CC0AC631B3DECB /* CloudSync.swift */,
 				DC054D87C37CF71468D8AE89 /* GamePhase.swift */,
 				D6C53723B204C05D7AABF1C4 /* GameState.swift */,
+				BDC54A88C49A452FC64BCE57 /* GCManager.swift */,
 				8A6AA1BE9E87CF2737251E1F /* Haptics.swift */,
 				D1D248B685BC088200F0EDA5 /* Info.plist */,
+				6FFBBEF8DB7DF347C1FA8F2C /* LiveActivityManager.swift */,
+				E6A79957CC6DCAA2E44AE1E9 /* ShadyGarageSpeed.entitlements */,
 				B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */,
 				A1794CFE4838D2EFB66AD1CF /* SceneKit */,
+				2F382B956889D6EE7A3C0073 /* Shared */,
 				26C63ABC031D42A0D81D4531 /* Views */,
 			);
 			path = ShadyGarageSpeed;
+			sourceTree = "<group>";
+		};
+		803FB0730825D5FF69FF4F2B /* ShadyGarageSpeedWidget */ = {
+			isa = PBXGroup;
+			children = (
+				293D9A25A967EEADF48DD564 /* Info.plist */,
+				956317B391BCE7D2719E4EAA /* LugnutWidget.swift */,
+				90B02FFEEE432F5D872355B2 /* RaceLiveActivity.swift */,
+				5D01AD0FA2819E69DD0709B8 /* ShadyGarageSpeedWidget.entitlements */,
+				699E843AD1A80F239F14AB4D /* ShadyGarageSpeedWidgetBundle.swift */,
+			);
+			path = ShadyGarageSpeedWidget;
 			sourceTree = "<group>";
 		};
 		8356C697EB2CE040DB153974 /* Products */ = {
@@ -137,6 +214,7 @@
 			children = (
 				28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */,
 				FC38C8C6C0C6E426C5F1B6C2 /* ShadyGarageSpeedUITests.xctest */,
+				8889BDCB06EF6B09A28FFADD /* ShadyGarageSpeedWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -180,10 +258,12 @@
 			buildPhases = (
 				BEEC992317D77F9AF3E9C0AF /* Sources */,
 				28DB130C3A016FCF69C39438 /* Resources */,
+				6E061A9B2E5EB089DD9EB5CB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				532313422C6407EFE47A7F7B /* PBXTargetDependency */,
 			);
 			name = ShadyGarageSpeed;
 			packageProductDependencies = (
@@ -191,6 +271,23 @@
 			productName = ShadyGarageSpeed;
 			productReference = 28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */;
 			productType = "com.apple.product-type.application";
+		};
+		ED6BE31080A547C8E7277B4B /* ShadyGarageSpeedWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A71E7CC207DEBE884C1250C1 /* Build configuration list for PBXNativeTarget "ShadyGarageSpeedWidget" */;
+			buildPhases = (
+				70EF62FDE3D1D0E2CE0DB602 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShadyGarageSpeedWidget;
+			packageProductDependencies = (
+			);
+			productName = ShadyGarageSpeedWidget;
+			productReference = 8889BDCB06EF6B09A28FFADD /* ShadyGarageSpeedWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -222,6 +319,7 @@
 			targets = (
 				7BF8CD66247DE6458E2B0B4E /* ShadyGarageSpeed */,
 				48E34722D89992E2556F8C49 /* ShadyGarageSpeedUITests */,
+				ED6BE31080A547C8E7277B4B /* ShadyGarageSpeedWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -238,16 +336,32 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		70EF62FDE3D1D0E2CE0DB602 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6070CD4666C5576E0B549896 /* LugnutShared.swift in Sources */,
+				D2650A63C1AC11C566FC1A48 /* LugnutWidget.swift in Sources */,
+				FBEE90CF9643ABFB555D1C1C /* RaceActivityAttributes.swift in Sources */,
+				3C11CA49EA3528BF4461C97A /* RaceLiveActivity.swift in Sources */,
+				90CF04797DEE64BCE76CB2E4 /* ShadyGarageSpeedWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BEEC992317D77F9AF3E9C0AF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9B41EA52AF73C9A3A8596C34 /* AppDelegate.swift in Sources */,
+				77258F5F26631B80EE8CCF97 /* AppIntents.swift in Sources */,
 				DAEBEA559F993B607B89758A /* AppState.swift in Sources */,
 				D7A44B98C8D63324A6B28133 /* AudioEngine.swift in Sources */,
 				4FB38999747613F6C55EB702 /* BuildScene.swift in Sources */,
 				82CA75FCE9D274F496870BD8 /* BuildView.swift in Sources */,
 				AC4689B6A77402F61ECC5861 /* CarFactory.swift in Sources */,
+				C2F920075D836523EA4193C8 /* CloudSync.swift in Sources */,
 				5EB5EE2D2AFB4D1CD1DD667C /* Components.swift in Sources */,
+				D4A12E429F4DF74633F0D61D /* GCManager.swift in Sources */,
 				E57BC40DD9936E725E661F5C /* GamePhase.swift in Sources */,
 				7C1C3F746E44CD9DB4C437AC /* GameState.swift in Sources */,
 				07B7466BA7F5859425944CFC /* GarageScene.swift in Sources */,
@@ -255,7 +369,10 @@
 				93B83F8685CB4D20A5A8484C /* Haptics.swift in Sources */,
 				F2C1204DE6922D67F7D68935 /* HireSheet.swift in Sources */,
 				453C7D0D3176F770B5476F23 /* LadderSheet.swift in Sources */,
+				786E15B6729257CC5E8B3514 /* LiveActivityManager.swift in Sources */,
+				E65159FD5453DB7856AC0BA4 /* LugnutShared.swift in Sources */,
 				CBBD77FE5BAFECBC0BCDC8CA /* MenuView.swift in Sources */,
+				8DED800AB3389DD82DD2880C /* RaceActivityAttributes.swift in Sources */,
 				777ECF5B3480A2919A27FD17 /* RaceScene.swift in Sources */,
 				993E2579CDA16989CEF51693 /* RaceView.swift in Sources */,
 				70F55A64EFD27757CD01DB52 /* ResultsView.swift in Sources */,
@@ -280,6 +397,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		532313422C6407EFE47A7F7B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ED6BE31080A547C8E7277B4B /* ShadyGarageSpeedWidget */;
+			targetProxy = 5361943E11BAFAEB9D827F0B /* PBXContainerItemProxy */;
+		};
 		EC9A39832ED3448C96DCA861 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7BF8CD66247DE6458E2B0B4E /* ShadyGarageSpeed */;
@@ -314,6 +436,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ShadyGarageSpeed/ShadyGarageSpeed.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -329,6 +452,30 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.noshu.shadygaragespeed;
 				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A62F14CB8AAECA153EE60A8E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShadyGarageSpeedWidget/ShadyGarageSpeedWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShadyGarageSpeedWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.noshu.shadygaragespeed.widget;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -356,10 +503,34 @@
 			};
 			name = Debug;
 		};
+		C41B69214BA549AF9B639C2C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShadyGarageSpeedWidget/ShadyGarageSpeedWidget.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShadyGarageSpeedWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.noshu.shadygaragespeed.widget;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		CA52C8596037ACA85B85657C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = ShadyGarageSpeed/ShadyGarageSpeed.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -375,6 +546,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.noshu.shadygaragespeed;
 				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -514,6 +686,15 @@
 			buildConfigurations = (
 				D80D2CCFB7714FA9C4E419BB /* Debug */,
 				E0EF24B9BB64131FC5F458F8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A71E7CC207DEBE884C1250C1 /* Build configuration list for PBXNativeTarget "ShadyGarageSpeedWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C41B69214BA549AF9B639C2C /* Debug */,
+				A62F14CB8AAECA153EE60A8E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

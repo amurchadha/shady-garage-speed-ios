@@ -18,7 +18,7 @@ struct RaceView: View {
         GeometryReader { geo in
             let compact = geo.size.height < 520 || geo.size.width < 700
             let narrowCtl = geo.size.width < 400
-            let btnD: CGFloat = compact ? (narrowCtl ? 60 : 64) : 74
+            let btnD: CGFloat = compact ? (narrowCtl ? 60 : 64) : min(96, geo.size.height / 8) // #53 iPad: bigger, capped
             let ctlSpacing: CGFloat = narrowCtl ? 10 : 14
             let mapSize: CGFloat = compact ? 96 : 140
             let nosW: CGFloat = compact ? 90 : 120

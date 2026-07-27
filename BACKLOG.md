@@ -37,6 +37,16 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - [x] #38 Rain ambience (steady lowpassed-noise patter for the whole rainy race, fixed low gain) — iOS
 - [x] #39 Garage ambience (wrench clink or compressor puff every 8–20s under the radio) — iOS
 - [x] #40 Customer mumble-blips (pitched gibberish per speech bubble; skeptic low, rushed fast-high, bigspender jolly, regular neutral) — iOS
+- [x] #51 Game Center leaderboards (GCManager: silent auth, per-track best-lap submit as centiseconds, results 🏆 dashboard) — iOS, behind `GAMECENTER_ENABLED` (off; needs paid account + 2 ASC leaderboards)
+- [x] #52 iCloud save sync (NSUbiquitousKeyValueStore, last-write-wins by savedAtMs, "Synced from your other device" toast) — iOS, behind `ICLOUD_ENABLED` (off; needs iCloud capability)
+- [x] #53 iPad layout pass (side-by-side garage/build panels, centered-form results sheet, race controls ≤96pt, topbar wrap fixes) — iOS, verified on iPad Air 13"
+- [x] #54 Home-screen quick action ("Start a Race", flag.checkered → track picker; static Info.plist item + AppDelegate handler) — iOS
+- [x] #55 Daily Lugnut widget (WidgetKit extension, small widget, App Group headline feed, midnight refresh) — iOS; device needs the App Groups capability
+- [x] #56 Richer haptics (per-zone minigame ticks, steal click-click, rage triple thud, payout cascade) — iOS
+- [x] #57 Live Activity race timer (lock screen + Dynamic Island, 1Hz, ends on finish/forfeit; fully local) — iOS
+- [x] #58 App Intents ("Start a race" → track picker, "What's my best lap?" → spoken per-track bests) — iOS
+- [x] #59 Per-phase orientation (Auto / Portrait / Landscape race via AppDelegate mask) — iOS
+- [x] #60 Catalyst check (builds + runs on macOS; ActivityKit guarded, iOS-filtered widget embed) — iOS, destination kept enabled
 
 ## Earlier iOS batches (pre-backlog)
 

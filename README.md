@@ -179,10 +179,12 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 `arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`, `speech-bubble`, `lugnut-card`,
 `golden-badge`, `tutorial-card`, `tutorial-next`, `tutorial-skip`, `menu-footer`,
 `nav-settings`, `set-music`, `set-sfx`, `set-rm`, `set-diff-<mode>`,
+`set-orient-auto|portrait|landscaperace`,
 `set-export`, `set-restore`, `set-reset`, `settings-close`,
 `track-row-N`, `track-close`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
 `pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`, `menu-goal`,
+`results-leaderboard`,
 `contract-card`, `contract-fulfill`, `nav-crew`, `crew-close`, `hire-N`,
 `mg-bar`, `mg-careful`, `mg-quick`, `mg-force`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
@@ -327,6 +329,58 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
   routes through the existing `sfxBus`/`musicBus` sliders. `-audio-debug` logs every
   loop START/STOP with a running count for orphan audits (verified balanced across
   race/build/garage cycles — no orphaned loops).
+
+## Platform & integrations (batch 11, #51–#60)
+
+- **Haptics (#56)**: the steal minigame ticks *distinctly per zone entered*
+  (bright/mid/heavy for green/yellow/red), steal success is a UIKit success
+  notification + custom "click-click", a rage quit is a heavy triple thud, and every
+  cash payout (job, race prize, pink slip) plays a light ascending cascade — all
+  capability-guarded CoreHaptics, fail-silent on the simulator.
+- **Quick action (#54)**: long-press the app icon → "Start a Race" (flag.checkered)
+  deep-links to the track picker. Static item in `Info.plist`, handled in
+  `AppDelegate` (cold + warm start via `DeepLinkCenter`).
+- **App Intents (#58)**: "Start a race in Shady Garage & Speed" (opens the track
+  picker) and "What's my best lap?" (reads the save, speaks per-track bests) via
+  `AppShortcutsProvider` — Siri + Shortcuts, no entitlements.
+- **Orientation (#59)**: Settings → Orientation: Auto / Portrait / Landscape race —
+  an `AppDelegate` orientation mask driven by the current phase.
+- **iPad (#53)**: regular-width layouts go side-by-side (job panel / build panel /
+  results become side or centered forms instead of full-width bottom sheets),
+  topbar meters/buttons can't wrap vertically, race controls scale to max 96pt.
+  `TARGETED_DEVICE_FAMILY` was already `1,2`; verified on iPad Air 13" (screens).
+- **Lugnut widget (#55)**: WidgetKit extension (`ShadyGarageSpeedWidget`, embedded):
+  small home-screen widget with today's Daily Lugnut headline via the App Group
+  store (app publishes on every headline), midnight timeline refresh.
+- **Live Activity (#57)**: race timer + speed on the lock screen / Dynamic Island,
+  started at GO, updated ~1Hz, ended on finish (shows the lap 4s) / forfeit / exit.
+  Fully local (`pushType: nil`) — no server or push capability needed.
+- **Mac Catalyst (#60)**: the app builds **and runs** on macOS (`SUPPORTS_MACCATALYST:
+  YES`; ActivityKit guarded with `#if !targetEnvironment(macCatalyst)`, the widget
+  embed is iOS-filtered — re-run `Scripts/patch-catalyst-embed.sh` after every
+  `xcodegen`). Haptics/Live Activities/widget/quick actions are no-ops on macOS.
+  (macOS screenshot not captured: the dev shell lacks Screen Recording permission;
+  verified running with a 1024×768 window via CGWindowList.)
+
+## Capabilities & entitlements
+
+Everything below works unsigned on the simulator; **device** use needs the listed
+capability on a Developer Program App ID. Compile flags live in `project.yml`
+(commented, off by default); entitlement keys live commented in
+`ShadyGarageSpeed/ShadyGarageSpeed.entitlements`.
+
+| Feature | Capability (App ID) | Entitlement key(s) | Compile flag | App Store Connect / other setup |
+| --- | --- | --- | --- | --- |
+| #51 Game Center leaderboards | Game Center | `com.apple.developer.game-center` | `GAMECENTER_ENABLED` | Create 2 leaderboards `sgs_classic_best` + `sgs_ridge_best` (score format: integer; sort: **lowest first** — scores are centiseconds) |
+| #52 iCloud save sync | iCloud (+ Key-Value Storage) | `com.apple.developer.ubiquity-kvstore-identifier` = `$(TeamIdentifierPrefix)com.noshu.shadygaragespeed`, `com.apple.developer.icloud-container-identifiers` (empty array) | `ICLOUD_ENABLED` | none — syncs after enabling + one relaunch |
+| #55 Lugnut widget | App Groups (app + widget targets) | `com.apple.security.application-groups` = `group.com.noshu.shadygaragespeed` (already active in both entitlements files) | — | none — works unsigned on the simulator |
+| #57 Live Activity | — (no capability for local activities) | `NSSupportsLiveActivities` in `Info.plist` (already active) | — | needs the widget extension installed; push-updated variants would need the Push capability (not used) |
+
+To enable #51/#52 on a device build: turn the capabilities on for the App ID, add
+the entitlement keys (template comments in the entitlements file), and uncomment
+`SWIFT_ACTIVE_COMPILATION_CONDITIONS` in `project.yml`, then `xcodegen` +
+`Scripts/patch-catalyst-embed.sh`. With a flag ON but the entitlement missing,
+each feature fails silent (never authenticates / never syncs).
 
 ## Notes
 

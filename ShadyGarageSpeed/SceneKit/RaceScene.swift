@@ -191,6 +191,8 @@ final class RaceScene: SceneController {
     private var nosLockout = false   // hit empty while held → locked until released & >15
     private var wallCooldown: Double = 0
     private var publishT: Double = 0
+    /// #57 Live Activity ~1Hz update accumulator (update budget is limited).
+    private var laT: Double = 0
     private var wheels: [SCNNode] = [] // tire0..3, front two steer
     private var wheelSpin: Float = 0
     /// Pink-slip ghost: translucent rival car pacing the target lap time.
@@ -986,6 +988,7 @@ final class RaceScene: SceneController {
         sfx.engineSound(false)
         sfx.musicStop()
         sfx.rain(false)
+        LiveActivityManager.end(finalLap: nil) // #57 forfeit dismisses the timer
         if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
         if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         DispatchQueue.main.async { self.countdownText = nil }
@@ -1005,6 +1008,7 @@ final class RaceScene: SceneController {
         sfx.engineSound(false)
         sfx.musicStop()
         sfx.rain(false)
+        LiveActivityManager.end(finalLap: nil) // #57 exit dismisses the timer
         if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
         if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         DispatchQueue.main.async { self.countdownText = nil }
@@ -1060,6 +1064,7 @@ final class RaceScene: SceneController {
         if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         for f in flames { f.isHidden = true }
         let lap = raceT
+        LiveActivityManager.end(finalLap: lap) // #57 shows the lap, then dismisses
         // per-track best laps (bestLaps keyed by track id)
         let trackId = track.id
         let priorBest = game.bestLaps[trackId]
@@ -1086,6 +1091,7 @@ final class RaceScene: SceneController {
                                 newBest: newBest, challenge: challengeResult)
         if newBest { sfx.fanfare() } else { sfx.success() } // arpeggio on a new best
         Haptics.notify(.success)
+        GCManager.shared.submitBestLap(trackId: trackId, seconds: lap) // #51 (no-op unless enabled)
 
         DispatchQueue.main.async { [game, toasts] in
             if newBest {
@@ -1209,6 +1215,7 @@ final class RaceScene: SceneController {
                 sfx.beep(880)
                 sfx.engineSound(true) // engine loop starts on GO
                 sfx.musicStart("race") // 128bpm race loop takes over from the radio
+                LiveActivityManager.start(trackName: track.name) // #57 lock-screen timer
             }
         }
 
@@ -1583,6 +1590,15 @@ final class RaceScene: SceneController {
                 self.raceSpeedKmh = kmh
                 self.nosMeterInt = nos
                 self.minimapPlayer = playerDot
+            }
+        }
+        // #57 Live Activity: ~1Hz timer + speed while racing
+        if phase == .racing {
+            laT += dt
+            if laT >= 1 {
+                laT = 0
+                LiveActivityManager.update(raceT: raceT,
+                                           speedKmh: Int((abs(speed) * 3.4).rounded()))
             }
         }
     }

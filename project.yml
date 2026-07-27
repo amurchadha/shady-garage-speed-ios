@@ -9,6 +9,12 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: ShadyGarageSpeed
+    dependencies:
+      - target: ShadyGarageSpeedWidget
+        embed: true # ship the widget extension inside the app bundle (#55/#57)
+        platform: iOS # iOS-only embed — after `xcodegen`, run
+        # Scripts/patch-catalyst-embed.sh (xcodegen drops the filter) so Mac
+        # Catalyst builds skip the appex (#60)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.noshu.shadygaragespeed
@@ -22,6 +28,42 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_ENTITLEMENTS: ShadyGarageSpeed/ShadyGarageSpeed.entitlements
+        # #60 Catalyst check: macOS destination enabled for the app (WidgetKit ext
+        # stays iOS-only — no Catalyst support). See README → "Mac Catalyst".
+        SUPPORTS_MACCATALYST: YES
+        # ── Paid-program capabilities (#51 Game Center, #52 iCloud sync) ──────────
+        # Flip on AFTER enabling the capability on the App ID + the setup in
+        # README → "Capabilities & entitlements" (leaderboards, key-value store):
+        #   GAMECENTER_ENABLED — Game Center capability; leaderboards
+        #     sgs_classic_best / sgs_ridge_best (lowest wins) in App Store Connect.
+        #   ICLOUD_ENABLED — iCloud capability incl. Key-Value Storage
+        #     (com.apple.developer.ubiquity-kvstore-identifier entitlement).
+        # Both compile to no-op stubs while off; with a flag ON but no entitlement
+        # they fail silent at runtime. Simulator builds need no signing.
+        # SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) GAMECENTER_ENABLED ICLOUD_ENABLED"
+  ShadyGarageSpeedWidget:
+    # #55 Daily Lugnut widget + #57 race Live Activity renderer.
+    # Sources: the extension plus the shared contracts (App Group bridge +
+    # ActivityAttributes) which must compile into both targets.
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ShadyGarageSpeedWidget
+      - path: ShadyGarageSpeed/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noshu.shadygaragespeed.widget
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: ShadyGarageSpeedWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShadyGarageSpeedWidget/ShadyGarageSpeedWidget.entitlements
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SUPPORTS_MACCATALYST: NO # WidgetKit extensions don't exist on macOS Catalyst
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator" # embed phase skips macOS (#60)
   ShadyGarageSpeedUITests:
     type: bundle.ui-testing
     platform: iOS

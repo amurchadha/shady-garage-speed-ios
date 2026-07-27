@@ -502,6 +502,7 @@ final class GarageScene: SceneController {
         dayEvents.insert("rage")
         say("rage", 3)
         sfx.fail()
+        Haptics.rageThud() // #56 heavy triple thud as they storm off
         prompt = "The customer noticed something!"
         selectedPart = nil
         clearHighlights()
@@ -540,6 +541,7 @@ final class GarageScene: SceneController {
         let cat = Self.eventPriority.first(where: { dayEvents.contains($0) }) ?? "clean"
         dayEvents = []
         guard let line = Self.headlines[cat]?.randomElement() else { return }
+        LugnutShared.publish(headline: line, day: game.day) // #55 widget feed
         DispatchQueue.main.async {
             self.lugnut = line
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) { [weak self] in
@@ -701,7 +703,7 @@ final class GarageScene: SceneController {
             let gain = (zone == "green" ? Double(12 + 6 * tier) : Double(25 + 8 * tier)) * mult
             addSuspicion(gain)
             sfx.cash()
-            Haptics.notify(.success)
+            Haptics.stealSuccess() // #56 success notification + click-click
             toasts.push("Stole \(GameState.tierNames[tier]) \(GameState.partLabels[p.type] ?? p.type)!",
                         zone == "green" ? .good : .warn)
         }
@@ -740,6 +742,7 @@ final class GarageScene: SceneController {
         game.suspicion = 0
         game.save()
         sfx.cash()
+        Haptics.cashCascade() // #56 light cascade on payment
         toasts.push("Job done! +$\(payment)", .good)
         toasts.pushCash("+$\(payment)") // floating cash pop
         publishLugnut()

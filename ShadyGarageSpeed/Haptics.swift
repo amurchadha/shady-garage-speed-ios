@@ -56,6 +56,20 @@ enum Haptics {
             } catch { /* fail silent */ }
         }
 
+        /// Multi-transient pattern: (delay seconds, intensity, sharpness) per hit.
+        func pattern(_ hits: [(Double, Float, Float)]) {
+            guard supported, let engine else { return }
+            do {
+                let events = hits.map { CHHapticEvent(eventType: .hapticTransient, parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: max(0, min(1, $0.1))),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: max(0, min(1, $0.2))),
+                ], relativeTime: $0.0) }
+                let pattern = try CHHapticPattern(events: events, parameters: [])
+                let player = try engine.makePlayer(with: pattern)
+                try player.start(atTime: CHHapticTimeImmediate)
+            } catch { /* fail silent */ }
+        }
+
         /// Continuous rumble used by NOS; call setRumble(0)/stopRumble to cut.
         func startRumble() {
             guard supported, let engine, rumble == nil else { return }
@@ -106,5 +120,34 @@ enum Haptics {
     /// Minigame marker crossing a zone edge: subtle tick.
     static func zoneTick() {
         Engine.shared.transient(0.3, 0.8)
+    }
+
+    // MARK: #56 richer haptics
+
+    /// Minigame marker ENTERS a zone band (0/4 red, 1/3 yellow, 2 green) —
+    /// a distinct tick per zone so the sweep is playable eyes-off.
+    static func zoneEntry(_ band: Int) {
+        switch band {
+        case 2:    Engine.shared.transient(0.45, 0.95) // green: bright high tick
+        case 1, 3: Engine.shared.transient(0.35, 0.6)  // yellow: neutral mid tick
+        default:   Engine.shared.transient(0.55, 0.2)  // red: dull heavy tick
+        }
+    }
+
+    /// Steal success: UIKit success notification + a custom "click-click".
+    static func stealSuccess() {
+        notify(.success)
+        Engine.shared.pattern([(0, 0.7, 0.95), (0.07, 0.5, 0.85)])
+    }
+
+    /// Customer storms off: heavy triple thud.
+    static func rageThud() {
+        Engine.shared.pattern([(0, 0.9, 0.1), (0.12, 0.8, 0.1), (0.24, 0.7, 0.1)])
+    }
+
+    /// Cash payment received: light ascending cascade.
+    static func cashCascade() {
+        Engine.shared.pattern([(0, 0.25, 0.8), (0.06, 0.32, 0.85),
+                               (0.12, 0.4, 0.9), (0.18, 0.5, 0.95)])
     }
 }

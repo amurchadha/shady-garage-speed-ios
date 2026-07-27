@@ -116,7 +116,7 @@ struct StealMinigameView: View {
             pos += dir * markerSpeed * dt
             if pos >= 100 { pos = 100; dir = -1 }
             if pos <= 0 { pos = 0; dir = 1 }
-            if zoneBand(pos) != bandBefore { Haptics.zoneTick() } // edge-crossing tick
+            if zoneBand(pos) != bandBefore { Haptics.zoneEntry(zoneBand(pos)) } // #56 per-zone tick
         }
     }
 

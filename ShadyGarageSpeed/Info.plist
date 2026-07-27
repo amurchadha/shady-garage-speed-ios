@@ -9,5 +9,18 @@
 		<key>ImageName</key>
 		<string>LaunchLogo</string>
 	</dict>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.noshu.shadygaragespeed.startrace</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Start a Race</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>flag.checkered</string>
+		</dict>
+	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 </dict>
 </plist>

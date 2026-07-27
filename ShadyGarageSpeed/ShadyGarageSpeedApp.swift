@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct ShadyGarageSpeedApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate // #54/#59
     @StateObject private var app = AppState()
 
     var body: some Scene {

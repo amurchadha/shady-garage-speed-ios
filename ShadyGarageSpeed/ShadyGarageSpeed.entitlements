@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- #55 Daily Lugnut widget: shared headline store with the widget extension.
+	     Required on device (needs a Developer Program App ID with App Groups);
+	     the simulator runs unsigned and ignores this. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.noshu.shadygaragespeed</string>
+	</array>
+	<!--
+	Paid-program capabilities — uncomment together with the swift flags in
+	project.yml (setup steps in README → "Capabilities & entitlements"):
+
+	#51 Game Center:
+	<key>com.apple.developer.game-center</key>
+	<true/>
+
+	#52 iCloud key-value store:
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array/>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)com.noshu.shadygaragespeed</string>
+	-->
+</dict>
+</plist>

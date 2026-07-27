@@ -28,6 +28,7 @@ struct GarageView: View {
     var body: some View {
         GeometryReader { geo in
             let compact = geo.size.height < 520
+            let wide = geo.size.width >= 700 // #53 iPad / big landscape: side panel
             ZStack(alignment: .top) {
                 SceneKitView(controller: scene, onTap: { pt, view in
                     scene.handleTap(pt, view)
@@ -54,7 +55,7 @@ struct GarageView: View {
                             .accessibilityIdentifier("debug-cars")
                     }
                     Spacer()
-                    if !compact {
+                    if !compact && !wide {
                         jobPanel(maxHeight: geo.size.height * 0.45)
                     }
                 }
@@ -62,17 +63,19 @@ struct GarageView: View {
                 .padding(.top, 4)
                 .padding(.bottom, 6)
 
-                if compact, scene.customer != nil {
+                // side panel: landscape phones + iPad (keeps the bay in view)
+                if compact || wide, scene.customer != nil {
                     HStack {
                         Spacer()
                         VStack {
                             Spacer()
-                            jobPanel(maxHeight: geo.size.height * 0.62)
-                                .frame(width: min(340, geo.size.width * 0.46))
+                            jobPanel(maxHeight: geo.size.height * (compact ? 0.62 : 0.8))
+                                .frame(width: min(compact ? 340 : 420, geo.size.width * 0.46))
                             Spacer()
                         }
                         .padding(.trailing, 8)
                     }
+                    .padding(.top, 64) // clear of the topbar
                 }
 
                 if let idx = scene.pendingStealIndex, let c = scene.customer, c.parts.indices.contains(idx) {
@@ -162,12 +165,13 @@ struct GarageView: View {
             .onAppear {
                 // NOTE: enterPlay is owned by AppState (single source) — calling it
                 // here too used to double-enter and could spawn a ghost customer car.
-                scene.portraitFraming = geo.size.height > geo.size.width
+                // bottom-sheet camera tilt only where a bottom panel exists (phones)
+                scene.portraitFraming = geo.size.height > geo.size.width && geo.size.width < 700
                 shownCash = game.cash
                 if !game.tutorialSeen && coachIdx < 0 { coachIdx = 0 } // first-run coach marks
             }
             .onChange(of: geo.size) { _, newSize in
-                scene.portraitFraming = newSize.height > newSize.width
+                scene.portraitFraming = newSize.height > newSize.width && newSize.width < 700
             }
             .onChange(of: game.cash) { _, v in stepCash(to: v) }
             .sheet(isPresented: $showLadder) {
@@ -285,12 +289,14 @@ struct GarageView: View {
                     SGSButton(title: "", small: true, a11y: "mute-toggle",
                               systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
                               label: audio.muted ? "Unmute" : "Mute") { audio.toggleMute() }
-                    SGSButton(title: "Ladder", small: true, a11y: "nav-ladder",
+                    // icon-only here (a11y labels intact): text labels wrap per-character
+                    // when the full-width row gets tight (iPad portrait)
+                    SGSButton(title: "", small: true, a11y: "nav-ladder",
                               systemImage: "trophy.fill", label: "Rival ladder") { showLadder = true }
-                    SGSButton(title: "Crew", small: true, a11y: "nav-crew",
+                    SGSButton(title: "", small: true, a11y: "nav-crew",
                               systemImage: "person.2.fill", label: "Hire crew") { showCrew = true }
-                    SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu",
-                              systemImage: "house.fill") { app.goMenu() }
+                    SGSButton(title: "", ghost: true, small: true, a11y: "nav-menu",
+                              systemImage: "house.fill", label: "Main menu") { app.goMenu() }
                     SGSButton(title: "", small: true, a11y: "nav-settings",
                               systemImage: "gearshape.fill", label: "Settings") { showSettings = true }
                     SGSButton(title: "Build", small: true, a11y: "nav-build",
@@ -311,6 +317,7 @@ struct GarageView: View {
                 .font(sgsFont(10, .bold))
                 .foregroundStyle(Color.sgsMuted)
                 .textCase(.uppercase)
+                .fixedSize() // never wrap into a vertical strip in a tight topbar
                 .accessibilityHidden(true) // the combined label carries the meaning
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.12))

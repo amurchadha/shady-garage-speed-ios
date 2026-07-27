@@ -55,6 +55,20 @@ struct SettingsSheet: View {
                     }
                 }
 
+                // orientation (#59): Auto / Portrait only / Landscape race
+                HStack(spacing: 8) {
+                    Text("Orientation")
+                    Spacer()
+                    ForEach(OrientationMode.allCases, id: \.self) { m in
+                        SGSButton(title: m.label,
+                                  ghost: OrientationLock.mode != m, small: true,
+                                  a11y: "set-orient-\(m.rawValue)") {
+                            OrientationLock.mode = m
+                            app.orientationMode = m // republish → row refresh
+                        }
+                    }
+                }
+
                 Divider().overlay(Color.white.opacity(0.15))
 
                 // save tools
