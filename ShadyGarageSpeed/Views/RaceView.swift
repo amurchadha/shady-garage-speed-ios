@@ -6,6 +6,7 @@ struct RaceView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var scene: RaceScene
     @ObservedObject private var audio = AudioEngine.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var thermal = false
 
     private func bind(_ kp: ReferenceWritableKeyPath<RaceScene, Bool>) -> Binding<Bool> {
@@ -24,6 +25,7 @@ struct RaceView: View {
             ZStack {
                 SceneKitView(controller: scene, fps: 60, thermal: thermal)
                     .ignoresSafeArea()
+                    .accessibilityHidden(true) // visual-only; state lives in the HUD
 
                 // timer + conditions, top center
                 VStack(spacing: 2) {
@@ -55,7 +57,7 @@ struct RaceView: View {
                         scene.setPaused(true)
                     } label: {
                         Image(systemName: "pause.fill")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(sgsFont(15, .bold))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Color.black.opacity(0.45))
@@ -74,6 +76,9 @@ struct RaceView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12)
                             .stroke(Color.white.opacity(0.15), lineWidth: 1))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Track map")
+                        .accessibilityAddTraits(.isImage)
                 }
                 .padding(.leading, 12)
                 .padding(.top, 8)
@@ -85,7 +90,7 @@ struct RaceView: View {
                         audio.toggleMute()
                     } label: {
                         Image(systemName: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 15))
+                            .font(sgsFont(15))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Color.black.opacity(0.45))
@@ -99,7 +104,7 @@ struct RaceView: View {
                         scene.forfeit()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(sgsFont(15, .bold))
                             .foregroundStyle(.white)
                             .frame(width: 38, height: 38)
                             .background(Color.black.opacity(0.45))
@@ -120,7 +125,7 @@ struct RaceView: View {
                 VStack(alignment: .trailing, spacing: 6) {
                     HStack(spacing: 6) {
                         Text("NOS")
-                            .font(.system(size: 12, weight: .black))
+                            .font(sgsFont(12, .black))
                             .tracking(1)
                             .foregroundStyle(Color(rgb: 0x7dd3fc))
                         ZStack(alignment: .leading) {
@@ -136,7 +141,7 @@ struct RaceView: View {
                             .monospacedDigit()
                             .accessibilityIdentifier("race-speed")
                         Text("km/h")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(sgsFont(16, .bold))
                             .foregroundStyle(Color.sgsMuted)
                     }
                 }
@@ -152,7 +157,7 @@ struct RaceView: View {
                         .foregroundStyle(Color.sgsAccent)
                         .shadow(color: .black.opacity(0.7), radius: 20, y: 8)
                         .id(cd)
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                         .offset(y: -geo.size.height * 0.12)
                 }
 
@@ -160,18 +165,18 @@ struct RaceView: View {
                 HStack(alignment: .bottom) {
                     HStack(spacing: ctlSpacing) {
                         HoldButton(label: "◀", tint: Color.sgsCard2, diameter: btnD,
-                                   a11y: "tc-left", pressed: bind(\.inputLeft))
+                                   a11y: "tc-left", a11yLabel: "Steer left", pressed: bind(\.inputLeft))
                         HoldButton(label: "▶", tint: Color.sgsCard2, diameter: btnD,
-                                   a11y: "tc-right", pressed: bind(\.inputRight))
+                                   a11y: "tc-right", a11yLabel: "Steer right", pressed: bind(\.inputRight))
                     }
                     Spacer()
                     HStack(spacing: ctlSpacing) {
                         HoldButton(label: "NOS", tint: Color(rgb: 0x3b82f6), diameter: btnD,
-                                   a11y: "tc-nos", pressed: bind(\.inputNos))
+                                   a11y: "tc-nos", a11yLabel: "NOS boost", pressed: bind(\.inputNos))
                         HoldButton(label: "BRK", tint: Color(rgb: 0xef4444), diameter: btnD,
-                                   a11y: "tc-brake", pressed: bind(\.inputDown))
+                                   a11y: "tc-brake", a11yLabel: "Brake", pressed: bind(\.inputDown))
                         HoldButton(label: "GAS", tint: Color(rgb: 0x22c55e), diameter: btnD,
-                                   a11y: "tc-gas", pressed: bind(\.inputUp))
+                                   a11y: "tc-gas", a11yLabel: "Gas", pressed: bind(\.inputUp))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -185,7 +190,7 @@ struct RaceView: View {
                             .font(.system(size: 28, weight: .black))
                             .tracking(3)
                         Text(scene.raceTimerText)
-                            .font(.system(size: 17, weight: .bold, design: .monospaced))
+                            .font(sgsFont(17, .bold, mono: true))
                             .monospacedDigit()
                             .foregroundStyle(Color.sgsMuted)
                         SGSButton(title: "Resume", big: true, a11y: "pause-resume") {
@@ -211,7 +216,8 @@ struct RaceView: View {
                     .accessibilityIdentifier("pause-overlay")
                 }
             }
-            .animation(.spring(duration: 0.25), value: scene.countdownText)
+            .animation(reduceMotion ? nil : .spring(duration: 0.25), value: scene.countdownText)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility2) // HUD grows to A11y L
         }
     }
 

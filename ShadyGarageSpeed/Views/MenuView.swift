@@ -18,19 +18,19 @@ struct MenuView: View {
                     .multilineTextAlignment(.center)
 
                 Text("Fix cars. Maybe steal parts. Build a racer.")
-                    .font(.system(size: 17))
+                    .font(sgsFont(17))
                     .foregroundStyle(Color.sgsMuted)
                     .padding(.bottom, 12)
 
                 // goal framing: next pink-slip rival (or the legend state)
                 if app.game.legend {
                     Text("👑 You are the Street Legend")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(sgsFont(14, .bold))
                         .foregroundStyle(Color(rgb: 0xf59e0b))
                         .accessibilityIdentifier("menu-goal")
                 } else if let rival = GameState.ladderRival(app.game.ladder) {
                     Text("Next rival: \(rival.name) — beat \(String(format: "%.1f", rival.time))s")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(sgsFont(14, .semibold))
                         .foregroundStyle(Color.sgsMuted)
                         .accessibilityIdentifier("menu-goal")
                 }

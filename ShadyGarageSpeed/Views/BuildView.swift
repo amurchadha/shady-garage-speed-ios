@@ -21,6 +21,7 @@ struct BuildView: View {
             ZStack {
                 SceneKitView(controller: scene, fps: 30, thermal: app.thermalLimited)
                     .ignoresSafeArea()
+                    .accessibilityHidden(true) // visual-only; state lives in the panel
 
                 if landscapePhone {
                     HStack {
@@ -48,6 +49,7 @@ struct BuildView: View {
                     }
                 }
             }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility3) // panel grows to A11y XL
             .onAppear {
                 scene.portraitFraming = portraitPhone
                 scene.refreshCustomCar()
@@ -64,10 +66,10 @@ struct BuildView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("🔧 Build Bay")
-                            .font(.system(size: 17, weight: .heavy))
+                            .font(sgsFont(17, .heavy))
                         Spacer()
                         Text("💰 $\(game.cash)")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(sgsFont(15, .bold))
                             .accessibilityIdentifier("build-cash")
                     }
 
@@ -82,18 +84,19 @@ struct BuildView: View {
                         HStack(spacing: 10) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("📜 Contract")
-                                    .font(.system(size: 12, weight: .black))
+                                    .font(sgsFont(12, .black))
                                 Text("\(GameState.tierNames[c.minTier]) \(GameState.partLabels[c.type] ?? c.type) · by Day \(c.deadline)")
-                                    .font(.system(size: 12))
+                                    .font(sgsFont(12))
                                     .foregroundStyle(Color.sgsMuted)
                                 Text("Reward: $\(c.reward)")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(sgsFont(12, .bold))
                                     .foregroundStyle(Color.sgsGood)
                             }
                             Spacer()
                             SGSButton(title: "Fulfill", small: true,
                                       disabled: !game.inventory.contains { $0.type == c.type && $0.tier >= c.minTier },
-                                      a11y: "contract-fulfill") {
+                                      a11y: "contract-fulfill",
+                                      hint: "Hands over the part and collects the reward") {
                                 scene.fulfillContract()
                             }
                         }
@@ -108,7 +111,7 @@ struct BuildView: View {
                     let cost = game.chassisCost(L)
                     HStack {
                         Text("Chassis: **Lv\(L) \(GameState.chassisNames[L])**")
-                            .font(.system(size: 14))
+                            .font(sgsFont(14))
                         Spacer()
                         if let cost {
                             SGSButton(title: "Upgrade $\(cost)", small: true,
@@ -136,7 +139,7 @@ struct BuildView: View {
                     if tab == .inventory {
                         if game.inventory.isEmpty {
                             Text("No parts yet. Steal some from customers, or buy from the Catalog…")
-                                .font(.system(size: 13))
+                                .font(sgsFont(13))
                                 .foregroundStyle(Color.sgsMuted)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 10)
@@ -164,13 +167,13 @@ struct BuildView: View {
     private func slot(_ type: String) -> some View {
         HStack {
             Text("\(GameState.partIcons[type] ?? "") \(GameState.partLabels[type] ?? type)")
-                .font(.system(size: 13, weight: .semibold))
+                .font(sgsFont(13, .semibold))
             Spacer()
             if let p = game.car.parts[type] {
                 TierBadge(tier: p.tier)
             } else {
                 Text("Empty")
-                    .font(.system(size: 11))
+                    .font(sgsFont(11))
                     .foregroundStyle(Color.sgsMuted)
             }
         }
@@ -185,14 +188,16 @@ struct BuildView: View {
         let d = game.demand(part.type, day: game.day)
         let arrow = d > 1.05 ? "▲" : d < 0.95 ? "▼" : ""
         let hot = part.stolenDay == game.day
+        let partName = "\(GameState.tierNames[part.tier]) \(GameState.partLabels[part.type] ?? part.type)"
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(GameState.partIcons[part.type] ?? "")
                     .font(.system(size: 20))
+                    .accessibilityHidden(true) // decorative emoji
                 TierBadge(tier: part.tier)
                 if hot {
                     Text("HOT")
-                        .font(.system(size: 9, weight: .black))
+                        .font(sgsFont(9, .black))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(Color.sgsBad.opacity(0.25))
@@ -202,15 +207,19 @@ struct BuildView: View {
                 Spacer()
             }
             Text(GameState.partLabels[part.type] ?? part.type)
-                .font(.system(size: 13, weight: .bold))
+                .font(sgsFont(13, .bold))
             HStack(spacing: 6) {
-                SGSButton(title: "Install", tiny: true, a11y: "install-\(index)") { scene.installPart(part.id) }
-                SGSButton(title: "Sell $\(price)\(arrow.isEmpty ? "" : " \(arrow)")", ghost: true, tiny: true, a11y: "sell-\(index)") { scene.sellPart(part.id) }
+                SGSButton(title: "Install", tiny: true, a11y: "install-\(index)",
+                          label: "Install \(partName)") { scene.installPart(part.id) }
+                SGSButton(title: "Sell $\(price)\(arrow.isEmpty ? "" : " \(arrow)")", ghost: true, tiny: true,
+                          a11y: "sell-\(index)",
+                          label: "Sell \(partName) for $\(price)") { scene.sellPart(part.id) }
             }
         }
         .padding(10)
         .background(Color.sgsCard2)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
     }
 
     /// Catalog card: one part type, buy buttons for Sport/Pro/Elite tiers.
@@ -219,8 +228,9 @@ struct BuildView: View {
             HStack(spacing: 6) {
                 Text(GameState.partIcons[type] ?? "")
                     .font(.system(size: 20))
+                    .accessibilityHidden(true) // decorative emoji
                 Text(GameState.partLabels[type] ?? type)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(sgsFont(13, .bold))
                 Spacer()
             }
             ForEach([2, 3, 4], id: \.self) { tier in
@@ -230,7 +240,8 @@ struct BuildView: View {
                     Spacer()
                     SGSButton(title: "$\(price)", tiny: true,
                               disabled: game.cash < price,
-                              a11y: "catalog-buy-\(type)-\(tier)") {
+                              a11y: "catalog-buy-\(type)-\(tier)",
+                              label: "Buy \(GameState.tierNames[tier]) \(GameState.partLabels[type] ?? type) for $\(price)") {
                         scene.buyPart(type, tier)
                     }
                 }
@@ -239,5 +250,6 @@ struct BuildView: View {
         .padding(10)
         .background(Color.sgsCard2)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
     }
 }

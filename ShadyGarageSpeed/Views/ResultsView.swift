@@ -9,6 +9,7 @@ struct ResultsView: View {
     var body: some View {
         SceneKitView(controller: app.raceScene, fps: 30, thermal: app.thermalLimited)
             .ignoresSafeArea()
+            .accessibilityHidden(true) // visual-only; the sheet carries the results
             .foregroundStyle(Color.sgsText)
             .sheet(isPresented: .constant(true)) {
                 Group {
@@ -18,6 +19,7 @@ struct ResultsView: View {
                         resultsCard(res)
                     }
                 }
+                .dynamicTypeSize(...DynamicTypeSize.accessibility3) // grows to A11y XL
                 .presentationDetents([.large])
                 .presentationBackground(.ultraThinMaterial)
                 .interactiveDismissDisabled(true) // navigate via the buttons only
@@ -34,7 +36,7 @@ struct ResultsView: View {
                             .foregroundStyle(ch.win ? Color.sgsGood : Color.sgsBad)
                             .accessibilityIdentifier("results-pinkslip")
                         Text(taunt(for: ch))
-                            .font(.system(size: 13))
+                            .font(sgsFont(13))
                             .italic()
                             .foregroundStyle(Color.sgsMuted)
                     } else {
@@ -42,7 +44,7 @@ struct ResultsView: View {
                             .font(.title2.bold())
                         if res.newBest {
                             Text("NEW BEST!")
-                                .font(.system(size: 12, weight: .black))
+                                .font(sgsFont(12, .black))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 3)
                                 .background(Color(rgb: 0xf59e0b))
@@ -92,7 +94,7 @@ struct ResultsView: View {
                 .foregroundStyle(Color.sgsMuted)
             Spacer()
             Text(value)
-                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                .font(sgsFont(16, .bold, mono: true))
                 .monospacedDigit()
                 .foregroundStyle(color)
         }
@@ -141,14 +143,14 @@ struct ResultsView: View {
             ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
                 HStack(spacing: 8) {
                     Text("#\(i + 1)")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(sgsFont(15, .bold))
                         .foregroundStyle(Color.sgsMuted)
                         .frame(width: 30, alignment: .leading)
                     Text(r.name)
                         .font(.system(size: 15, weight: r.you ? .heavy : .regular))
                     Spacer()
                     Text(RaceScene.fmtTime(r.time))
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
+                        .font(sgsFont(15, .bold, mono: true))
                         .monospacedDigit()
                 }
                 .padding(.horizontal, 8)
@@ -159,7 +161,7 @@ struct ResultsView: View {
                     .stroke(r.you ? Color.sgsAccent.opacity(0.5) : Color.clear, lineWidth: 1))
             }
             Text("You placed #\(place) of \(rows.count)")
-                .font(.system(size: 14))
+                .font(sgsFont(14))
                 .foregroundStyle(Color.sgsMuted)
                 .padding(.top, 2)
         }

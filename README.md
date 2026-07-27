@@ -123,6 +123,8 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-paused` — the race opens already paused (pause-overlay screenshots).
 - `-heat N` — set the Heat meter (persisted, so a relaunch keeps it).
 - `-cash N` — set cash (deterministic economy tests).
+- `-vo-sim` — force the accessible (button-based) steal minigame, as if VoiceOver were on.
+- `-dts ax1..ax5` — force a content size category for Dynamic Type screenshots (ax5 = A11y XXXL).
 - `-contract <type> <minTier>` — seed an active contracts-board order.
 - `-cop` — every heat ≥70 arrival triggers a cop visit (deterministic cop-flow tests).
 - `-debughud` — show a live customer-car node count under the prompt (ghost-car regression hook).
@@ -134,6 +136,8 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 ## UI tests
 
 A UI-testing target (`ShadyGarageSpeedUITests`) drives the real app end-to-end:
+accessibility (human-readable VoiceOver labels on key controls, and the `-vo-sim`
+accessible minigame path with Careful/Quick/Force buttons),
 garage loop (fix → steal → finish), build bay (install raises Speed), Parts Catalog
 (buy a Sport engine → cash drops, part lands in inventory), contracts board
 (`-seedparts -contract engine 3` → Fulfill pays $396 and consumes the part),
@@ -165,7 +169,8 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 `arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`, `speech-bubble`, `lugnut-card`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
 `pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`, `menu-goal`,
-`contract-card`, `contract-fulfill`, `nav-crew`, `crew-close`, `hire-N`, `mg-bar`,
+`contract-card`, `contract-fulfill`, `nav-crew`, `crew-close`, `hire-N`,
+`mg-bar`, `mg-careful`, `mg-quick`, `mg-force`,
 `stat-speed|accel|handling`, `chassis-upgrade`, `tab-inventory`, `tab-catalog`,
 `catalog-buy-<type>-<tier>`, `build-cash`, `install-N`, `sell-N`, `build-back`,
 `race-timer`, `race-speed`, `race-pause`, `pause-overlay`, `pause-resume|forfeit|quit`,
@@ -231,6 +236,26 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
   per-frame allocation) — launch/hard-steer tire smoke, off-track dust, barrier
   sparks scaled by impact, NOS exhaust puffs, and 8-second skid marks on hard
   steer/brake.
+
+## Accessibility
+
+- **VoiceOver**: every interactive element has a human-readable `accessibilityLabel`
+  ("Steal Turbo, Pro tier", not `steal-1`) and non-obvious actions have
+  `accessibilityHint`s. Decorative content is hidden (emoji, meter bars, the 3D
+  scene view, toast bars); the minimap is an `.isImage` ("Track map"); meters and
+  stat bars expose combined labels ("Suspicion 45 of 100"). Toasts, phase changes
+  (`.screenChanged`), the cop modal, race results, and ladder progress are announced
+  with `UIAccessibility.post`.
+- **Accessible minigame**: under VoiceOver (or `-vo-sim`) the timing bar is replaced
+  by three explicit choices — Careful swap (60% green-equivalent roll), Quick grab
+  (yellow), Force it (red) — same suspicion outcomes.
+- **Dynamic Type**: content text uses `sgsFont()` (named text styles) instead of
+  fixed `.system(size:)`; caps keep layout sane (topbar/race HUD to A11y L, panels
+  and sheets to A11y XL). Buttons keep ≥44pt touch targets. Verified at
+  `accessibilityExtraExtraExtraLarge` via the `-dts ax1..ax5` debug arg.
+- **Reduce Motion**: minigame marker ×0.6, owner bob/phone-tilt frozen, turntable
+  stopped, highlight pulse constant, cash tween instant, countdown/lugnut transitions
+  fade-only.
 
 ## Notes
 

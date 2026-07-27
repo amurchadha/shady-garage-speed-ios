@@ -128,6 +128,53 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         shot("garage_after_finish")
     }
 
+    /// VoiceOver audit: key controls expose human-readable labels (not test ids),
+    /// and `-vo-sim` swaps the timing minigame for explicit risk-choice buttons.
+    func testAccessibility() throws {
+        launch(["-reset", "-phase", "garage"])
+        let prompt = app.staticTexts["garage-prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+
+        // human-readable labels, not identifiers
+        XCTAssertEqual(app.buttons["nav-build"].label, "Build bay")
+        XCTAssertEqual(app.buttons["nav-race"].label, "Race")
+        XCTAssertEqual(app.buttons["nav-ladder"].label, "Rival ladder")
+        XCTAssertEqual(app.buttons["nav-crew"].label, "Hire crew")
+        XCTAssertFalse(app.buttons["finish-job"].label.isEmpty)
+        XCTAssertTrue(app.buttons["fix-0"].label.contains("Fix"))
+        XCTAssertTrue(app.buttons["steal-0"].label.contains("Steal"))
+        XCTAssertTrue(app.buttons["steal-0"].label.contains("tier"),
+                      "steal label should name the part tier, got \(app.buttons["steal-0"].label)")
+
+        // race touch controls are labeled buttons
+        app.buttons["nav-race"].tap()
+        XCTAssertTrue(app.buttons["tc-gas"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["tc-gas"].label, "Gas")
+        XCTAssertEqual(app.buttons["tc-nos"].label, "NOS boost")
+        XCTAssertEqual(app.buttons["tc-brake"].label, "Brake")
+        app.buttons["forfeit"].tap()
+        XCTAssertTrue(app.buttons["nav-build"].waitForExistence(timeout: 5))
+
+        // -vo-sim: accessible minigame replaces the timing bar
+        launch(["-reset", "-vo-sim", "-phase", "garage"])
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+        XCTAssertTrue(tapFirstEnabled("steal", range: 0...5), "no stealable part")
+        XCTAssertFalse(app.buttons["mg-swap"].exists, "timing bar must be hidden in accessible mode")
+        let careful = app.buttons["mg-careful"]
+        XCTAssertTrue(careful.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["mg-quick"].exists)
+        XCTAssertTrue(app.buttons["mg-force"].exists)
+        shot("accessible_minigame_modal")
+        app.buttons["mg-quick"].tap() // deterministic yellow outcome
+        XCTAssertTrue(careful.waitForNonExistence(timeout: 5))
+        let susp = app.staticTexts["hud-suspicion"]
+        XCTAssertTrue(susp.waitForExistence(timeout: 3))
+        XCTAssertGreaterThan(digits(susp.label) ?? 0, 0, "quick grab should raise suspicion")
+        shot("accessibility_minigame")
+    }
+
     /// customer archetypes: a Skeptic multiplies suspicion gains ×1.5 (red zone
     /// 35 → 52.5 → 53). -mgzone red makes the steal outcome deterministic and
     /// -nowatch keeps the owner's watch cycle from adding its own ×1.5.

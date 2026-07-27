@@ -18,7 +18,7 @@ struct LadderSheet: View {
 
             if game.legend {
                 Text("👑 You are the Street Legend")
-                    .font(.system(size: 16, weight: .heavy))
+                    .font(sgsFont(16, .heavy))
                     .foregroundStyle(Color(rgb: 0xf59e0b))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -35,6 +35,7 @@ struct LadderSheet: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .foregroundStyle(Color.sgsText)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility3) // sheet content grows to A11y XL
         .presentationDetents([.medium, .large])
         .presentationBackground(.ultraThinMaterial)
     }
@@ -47,20 +48,22 @@ struct LadderSheet: View {
         let prize = "\(GameState.tierNames[rival.prizeTier]) \(GameState.partLabels[rival.prizeType] ?? rival.prizeType) + $\(rival.purse)"
         HStack(spacing: 10) {
             Text(beaten ? "✓" : current ? "🏁" : "🔒")
-                .font(.system(size: 15, weight: .bold))
+                .font(sgsFont(15, .bold))
                 .foregroundStyle(beaten ? Color.sgsGood : Color.sgsText)
                 .frame(width: 24)
                 .accessibilityIdentifier("ladder-row-\(pos)")
             VStack(alignment: .leading, spacing: 2) {
                 Text(rival.name)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(sgsFont(15, .bold))
                 Text("Target \(String(format: "%.1f", rival.time))s · \(prize)")
-                    .font(.system(size: 12))
+                    .font(sgsFont(12))
                     .foregroundStyle(Color.sgsMuted)
             }
             Spacer()
             if current {
-                SGSButton(title: "Challenge", small: true, a11y: "ladder-challenge") {
+                SGSButton(title: "Challenge", small: true, a11y: "ladder-challenge",
+                          label: "Challenge \(rival.name)",
+                          hint: "Starts a pink-slip race") {
                     dismiss()
                     app.startChallenge(pos)
                 }
@@ -70,5 +73,6 @@ struct LadderSheet: View {
         .background(Color.sgsCard2.opacity(current ? 1 : 0.55))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .opacity(!beaten && !current ? 0.6 : 1)
+        .accessibilityElement(children: .contain)
     }
 }

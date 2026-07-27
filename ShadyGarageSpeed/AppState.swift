@@ -28,6 +28,7 @@ final class ToastCenter: ObservableObject {
         let t = Toast(text: text, kind: kind)
         toasts.append(t)
         while toasts.count > 5 { toasts.removeFirst() }
+        A11y.announce(text) // VoiceOver reads every toast
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { [weak self] in
             self?.toasts.removeAll { $0.id == t.id }
         }
@@ -52,8 +53,25 @@ final class ToastCenter: ObservableObject {
 }
 
 final class AppState: ObservableObject {
-    @Published var phase: GamePhase = .menu
+    @Published var phase: GamePhase = .menu {
+        didSet {
+            guard phase != oldValue else { return }
+            A11y.screenChanged(phaseDescription) // "screen changed" + phase name
+        }
+    }
     @Published var lastFinish: FinishData?
+
+    /// VoiceOver phase names ("Garage. Day 3." style).
+    private var phaseDescription: String {
+        switch phase {
+        case .menu:    return "Main menu"
+        case .setup:   return "New game setup"
+        case .garage:  return "Garage. Day \(game.day)."
+        case .build:   return "Build bay"
+        case .race:    return "Race"
+        case .results: return "Race results"
+        }
+    }
     /// Thermal downshift: true while ProcessInfo.thermalState is .serious/.critical —
     /// SceneKitViews drop to 30fps and disable MSAA until it cools to .nominal/.fair.
     @Published private(set) var thermalLimited = false
@@ -70,6 +88,7 @@ final class AppState: ObservableObject {
     lazy var raceScene: RaceScene = RaceScene(game: game, toasts: toasts)
 
     init() {
+        A11y.observeMotionChanges() // keep the reduce-motion flag live
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-reset") {
             UserDefaults.standard.removeObject(forKey: "sgs_save") // fresh state for tests
@@ -88,6 +107,20 @@ final class AppState: ObservableObject {
             self.lastFinish = data
             self.raceChallenge = nil // the challenge is consumed by the run
             if data.challenge?.becameLegend == true { self.showLegendOverlay = true }
+            // VoiceOver: results + ladder progress
+            if let ch = data.challenge {
+                if ch.win {
+                    if data.challenge?.becameLegend == true {
+                        A11y.announce("Pink slip won against \(ch.name). You are the Street Legend!")
+                    } else if let next = GameState.ladderRival(self.game.ladder) {
+                        A11y.announce("Pink slip won against \(ch.name). Next rival: \(next.name), beat \(String(format: "%.1f", next.time)) seconds.")
+                    }
+                } else {
+                    A11y.announce("Pink slip lost to \(ch.name) by \(String(format: "%.2f", data.lap - ch.target)) seconds.")
+                }
+            } else {
+                A11y.announce("Lap complete, \(String(format: "%.1f", data.lap)) seconds\(data.newBest ? ", new best" : "").")
+            }
             self.phase = .results
         }
         raceScene.onExit = { [weak self] in

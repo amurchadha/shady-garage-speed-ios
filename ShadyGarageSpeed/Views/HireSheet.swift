@@ -25,24 +25,26 @@ struct HireSheet: View {
                             .fill(Color(rgb: f.color))
                             .frame(width: 34, height: 34)
                         Text(String(f.name.prefix(1)))
-                            .font(.system(size: 16, weight: .black))
+                            .font(sgsFont(16, .black))
                             .foregroundStyle(.white)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(f.name)
-                            .font(.system(size: 15, weight: .bold))
+                            .font(sgsFont(15, .bold))
                         Text(f.desc)
-                            .font(.system(size: 12))
+                            .font(sgsFont(12))
                             .foregroundStyle(Color.sgsMuted)
                     }
                     Spacer()
                     if hired {
                         Text("HIRED ✓")
-                            .font(.system(size: 12, weight: .black))
+                            .font(sgsFont(12, .black))
                             .foregroundStyle(Color.sgsGood)
                     } else {
                         SGSButton(title: "Hire $\(price)", small: true,
-                                  disabled: game.cash < price, a11y: "hire-\(i)") {
+                                  disabled: game.cash < price, a11y: "hire-\(i)",
+                                  label: "Hire \(f.name) for $\(price)",
+                                  hint: f.desc) {
                             if game.hireCrew(i) {
                                 app.toasts.push("\(f.name) joined the crew! \(f.desc)", .good)
                             }

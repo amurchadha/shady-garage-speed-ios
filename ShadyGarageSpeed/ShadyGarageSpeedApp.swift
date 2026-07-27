@@ -19,6 +19,21 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var debugApplied = false
 
+    /// Debug `-dts ax1..ax5`: force a huge content size category for screenshots
+    /// (ax5 = accessibilityExtraExtraExtraLarge).
+    private var debugSizeCategory: ContentSizeCategory? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-dts"), i + 1 < args.count else { return nil }
+        switch args[i + 1] {
+        case "ax1": return .accessibilityMedium
+        case "ax2": return .accessibilityLarge
+        case "ax3": return .accessibilityExtraLarge
+        case "ax4": return .accessibilityExtraExtraLarge
+        case "ax5": return .accessibilityExtraExtraExtraLarge
+        default:    return nil
+        }
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -49,6 +64,7 @@ struct RootView: View {
             }
             .allowsHitTesting(false) // toasts are display-only; never block taps
         }
+        .modifier(SizeCategoryOverride(category: debugSizeCategory))
         .onAppear { applyDebugArgOnce() }
         .onChange(of: scenePhase) { _, phase in
             // freeze all sims + drop inputs/audio while inactive/backgrounded
@@ -61,6 +77,7 @@ struct RootView: View {
         ZStack {
             SceneKitView(controller: app.garageScene, fps: 30, thermal: app.thermalLimited)
                 .ignoresSafeArea()
+                .accessibilityHidden(true) // visual-only backdrop
             Color(red: 8 / 255, green: 10 / 255, blue: 16 / 255).opacity(0.55)
                 .ignoresSafeArea()
         }
@@ -70,5 +87,17 @@ struct RootView: View {
         guard !debugApplied else { return }
         debugApplied = true
         app.applyDebugArgs(ProcessInfo.processInfo.arguments)
+    }
+}
+
+/// Applies a forced size category only when `-dts` is passed (system setting untouched otherwise).
+private struct SizeCategoryOverride: ViewModifier {
+    let category: ContentSizeCategory?
+    func body(content: Content) -> some View {
+        if let category {
+            content.environment(\.sizeCategory, category)
+        } else {
+            content
+        }
     }
 }

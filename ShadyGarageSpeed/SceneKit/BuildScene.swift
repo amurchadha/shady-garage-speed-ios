@@ -219,7 +219,9 @@ final class BuildScene: SceneController {
 
     override func update(dt: TimeInterval) {
         elapsed += dt
-        turntable.eulerAngles.y += Float(dt) * 0.35
+        if !A11y.reduceMotion {
+            turntable.eulerAngles.y += Float(dt) * 0.35
+        }
         if portraitFraming {
             // portrait: aim below the car so it rides above the bottom-sheet panel
             cameraNode.position = SCNVector3(

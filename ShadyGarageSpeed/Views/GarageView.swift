@@ -8,6 +8,7 @@ struct GarageView: View {
     @ObservedObject var scene: GarageScene
     @ObservedObject var game: GameState
     @ObservedObject private var audio = AudioEngine.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Debug launch arg `-laddersheet` opens the rival ladder directly (screenshots).
     @State private var showLadder = ProcessInfo.processInfo.arguments.contains("-laddersheet")
     /// Debug launch arg `-crewsheet` opens the hire sheet directly (screenshots).
@@ -24,12 +25,13 @@ struct GarageView: View {
                     scene.handleTap(pt, view)
                 }, fps: 30, thermal: app.thermalLimited)
                 .ignoresSafeArea()
+                .accessibilityHidden(true) // visual-only; state lives in the HUD
 
                 VStack(spacing: 8) {
                     topbar(narrow: geo.size.width < 700)
                     if !scene.prompt.isEmpty {
                         Text(scene.prompt)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(sgsFont(14, .semibold))
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
                             .background(Color.sgsPanel)
@@ -39,7 +41,7 @@ struct GarageView: View {
                     }
                     if scene.debugHUD {
                         Text("cars:\(scene.carCount)")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .font(sgsFont(10, .bold, mono: true))
                             .foregroundStyle(Color.sgsMuted)
                             .accessibilityIdentifier("debug-cars")
                     }
@@ -86,11 +88,11 @@ struct GarageView: View {
                 if let headline = scene.lugnut {
                     VStack(spacing: 4) {
                         Text("THE DAILY LUGNUT")
-                            .font(.system(size: 12, weight: .black))
+                            .font(sgsFont(12, .black))
                             .tracking(2)
                             .foregroundStyle(Color.sgsBad)
                         Text(headline)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(sgsFont(13, .bold))
                             .multilineTextAlignment(.center)
                     }
                     .padding(.horizontal, 16)
@@ -104,7 +106,7 @@ struct GarageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .onTapGesture { scene.dismissLugnut() }
                     .accessibilityIdentifier("lugnut-card")
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                 }
 
                 // floating "+$X" cash pops near the cash readout
@@ -118,6 +120,7 @@ struct GarageView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .allowsHitTesting(false)
             }
+            .dynamicTypeSize(...DynamicTypeSize.accessibility3) // content grows to A11y XL
             .onAppear {
                 // NOTE: enterPlay is owned by AppState (single source) — calling it
                 // here too used to double-enter and could spawn a ghost customer car.
@@ -147,7 +150,12 @@ struct GarageView: View {
     // MARK: topbar
 
     /// Cash count-up tween: shownCash chases game.cash at ~30Hz (juice).
+    /// Instant under Reduce Motion.
     private func stepCash(to v: Int) {
+        if reduceMotion {
+            shownCash = v
+            return
+        }
         cashTimer?.invalidate()
         cashTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { t in
             let diff = v - shownCash
@@ -168,18 +176,18 @@ struct GarageView: View {
                 VStack(spacing: 8) {
                     HStack(spacing: 10) {
                         Text("📅 Day \(game.day)")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(sgsFont(13, .semibold))
                             .fixedSize()
                             .accessibilityIdentifier("hud-day")
                         Text("💰 $\(shownCash)")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(sgsFont(13, .semibold))
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
                         Spacer()
                         SGSButton(title: "", small: true, a11y: "nav-build",
-                                  systemImage: "wrench.fill") { app.goBuild() }
+                                  systemImage: "wrench.fill", label: "Build bay") { app.goBuild() }
                         SGSButton(title: "", small: true, a11y: "nav-race",
-                                  systemImage: "flag.checkered") { app.goRace() }
+                                  systemImage: "flag.checkered", label: "Race") { app.goRace() }
                     }
                     HStack(spacing: 14) {
                         Spacer()
@@ -193,24 +201,25 @@ struct GarageView: View {
                     HStack(spacing: 14) {
                         Spacer()
                         SGSButton(title: "", small: true, a11y: "nav-menu",
-                                  systemImage: "house.fill") { app.goMenu() }
+                                  systemImage: "house.fill", label: "Main menu") { app.goMenu() }
                         SGSButton(title: "", small: true, a11y: "mute-toggle",
-                                  systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
+                                  systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                                  label: audio.muted ? "Unmute" : "Mute") { audio.toggleMute() }
                         SGSButton(title: "", small: true, a11y: "nav-ladder",
-                                  systemImage: "trophy.fill") { showLadder = true }
+                                  systemImage: "trophy.fill", label: "Rival ladder") { showLadder = true }
                         SGSButton(title: "", small: true, a11y: "nav-crew",
-                                  systemImage: "person.2.fill") { showCrew = true }
+                                  systemImage: "person.2.fill", label: "Hire crew") { showCrew = true }
                         Spacer()
                     }
                 }
             } else {
                 HStack(spacing: 12) {
                     Text("📅 Day \(game.day)")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(sgsFont(14, .semibold))
                         .fixedSize()
                         .accessibilityIdentifier("hud-day")
                     Text("💰 $\(shownCash)")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(sgsFont(14, .semibold))
                         .fixedSize()
                         .accessibilityIdentifier("hud-cash")
                     Spacer()
@@ -221,11 +230,12 @@ struct GarageView: View {
                           color: Color(rgb: 0xf97316), barWidth: 60, a11y: "hud-heat")
                     Spacer()
                     SGSButton(title: "", small: true, a11y: "mute-toggle",
-                              systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { audio.toggleMute() }
+                              systemImage: audio.muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                              label: audio.muted ? "Unmute" : "Mute") { audio.toggleMute() }
                     SGSButton(title: "Ladder", small: true, a11y: "nav-ladder",
-                              systemImage: "trophy.fill") { showLadder = true }
+                              systemImage: "trophy.fill", label: "Rival ladder") { showLadder = true }
                     SGSButton(title: "Crew", small: true, a11y: "nav-crew",
-                              systemImage: "person.2.fill") { showCrew = true }
+                              systemImage: "person.2.fill", label: "Hire crew") { showCrew = true }
                     SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu",
                               systemImage: "house.fill") { app.goMenu() }
                     SGSButton(title: "Build", small: true, a11y: "nav-build",
@@ -235,6 +245,7 @@ struct GarageView: View {
                 }
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2) // topbar grows to A11y L, capped
     }
 
     private func meter(_ title: String, value: Int, color: Color, barWidth: CGFloat,
@@ -242,27 +253,32 @@ struct GarageView: View {
         let w = barWidth
         return HStack(spacing: 5) {
             Text(title)
-                .font(.system(size: 10, weight: .bold))
+                .font(sgsFont(10, .bold))
                 .foregroundStyle(Color.sgsMuted)
                 .textCase(.uppercase)
+                .accessibilityHidden(true) // the combined label carries the meaning
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.12))
                 Capsule().fill(color)
                     .frame(width: w * CGFloat(min(100, max(0, value))) / 100)
             }
             .frame(width: w, height: 10)
+            .accessibilityHidden(true) // decorative bar
             Text("\(min(100, max(0, value)))")
-                .font(.system(size: 12, weight: .heavy))
+                .font(sgsFont(12, .heavy))
                 .frame(minWidth: 20, alignment: .leading)
                 .accessibilityIdentifier(a11y ?? "")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(title) \(min(100, max(0, value))) of 100")
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
     // MARK: job panel
 
     private func chip(_ text: String, color: Color, a11y: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
+            .font(sgsFont(11, .bold))
             .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -278,11 +294,11 @@ struct GarageView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 8) {
                             Text("\(c.name)’s Car")
-                                .font(.system(size: 16, weight: .heavy))
+                                .font(sgsFont(16, .heavy))
                             let badge = GameState.archBadge(c.archetype)
                             if !badge.isEmpty {
                                 Text(badge)
-                                    .font(.system(size: 15))
+                                    .font(sgsFont(15))
                                     .accessibilityIdentifier("arch-badge")
                             }
                             Spacer()
@@ -304,7 +320,7 @@ struct GarageView: View {
                         .frame(maxHeight: maxHeight)
                         HStack {
                             Text("Job total: **$\(scene.jobTotal)**")
-                                .font(.system(size: 15))
+                                .font(sgsFont(15))
                                 .accessibilityIdentifier("job-total")
                             Spacer()
                             SGSButton(title: "Finish Job", disabled: scene.jobActions < 1,
@@ -323,31 +339,41 @@ struct GarageView: View {
             : p.needsService ? "Worn – needs service" : "OK"
         let condOK = p.stolen || p.fixed || !p.needsService
         let selected = scene.selectedPart == p.type
+        let partName = "\(GameState.partLabels[p.type] ?? p.type), \(GameState.tierNames[p.tier]) tier"
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 7) {
                 Text("\(GameState.partIcons[p.type] ?? "") \(GameState.partLabels[p.type] ?? p.type)")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(sgsFont(14, .bold))
                 TierBadge(tier: p.tier)
                 Spacer()
                 Text(cond)
-                    .font(.system(size: 11))
+                    .font(sgsFont(11))
                     .foregroundStyle(condOK ? Color.sgsGood : Color.sgsWarn)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6) // shrink instead of clipping at huge text sizes
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             HStack(spacing: 8) {
                 SGSButton(title: "Fix", tiny: true, disabled: !p.needsService || p.fixed,
-                          a11y: "fix-\(i)") {
+                          a11y: "fix-\(i)",
+                          label: "Fix \(partName)", hint: "Repairs this part") {
                     scene.fixPart(i)
                 }
                 SGSButton(title: "Steal", tiny: true,
                           tint: scene.ownerWatching ? Color.sgsBad : Color(rgb: 0x7c3aed),
-                          disabled: p.stolen, a11y: "steal-\(i)") {
+                          disabled: p.stolen, a11y: "steal-\(i)",
+                          label: "Steal \(partName)", hint: "Opens the timing minigame") {
                     scene.stealPart(i)
                 }
                 if p.tier == 1 && !p.stolen {
                     Text("stock – not worth stealing")
-                        .font(.system(size: 10))
+                        .font(sgsFont(10))
                         .italic()
                         .foregroundStyle(Color.sgsMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .accessibilityHidden(true)
                 }
             }
         }
@@ -356,6 +382,7 @@ struct GarageView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10)
             .stroke(selected ? Color.sgsAccent : Color.clear, lineWidth: 1.5))
+        .accessibilityElement(children: .contain) // sensible VoiceOver reading order
         .onTapGesture { scene.selectedPart = p.type }
     }
 
@@ -369,16 +396,18 @@ struct GarageView: View {
                 .foregroundStyle(Color.sgsMuted)
             if scene.copExplain {
                 Text("First visit? Heat at 70+ brings cops around. Bribe to cool off fast, or lay low and lose a day.")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(sgsFont(13, .semibold))
                     .foregroundStyle(Color.sgsWarn)
             }
             HStack {
                 Spacer()
                 SGSButton(title: "Pay $200 bribe", disabled: !scene.canBribe,
-                          a11y: "cop-bribe") {
+                          a11y: "cop-bribe",
+                          hint: "The cops leave and heat drops by 50") {
                     scene.copBribe()
                 }
-                SGSButton(title: "Lay low", ghost: true, a11y: "cop-laylow") {
+                SGSButton(title: "Lay low", ghost: true, a11y: "cop-laylow",
+                          hint: "Skip a day, heat drops by 25") {
                     scene.copLayLow()
                 }
             }

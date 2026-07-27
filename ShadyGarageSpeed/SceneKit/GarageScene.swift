@@ -344,6 +344,7 @@ final class GarageScene: SceneController {
         game.copHintShown = true
         game.save()
         showCopModal = true
+        A11y.announce("Warning. Cops are sniffing around the garage.")
         Haptics.notify(.warning)
     }
 
@@ -542,11 +543,13 @@ final class GarageScene: SceneController {
 
     private func refreshHighlights() {
         if elapsed >= flashUntil { flashType = nil }
+        // selection pulse (constant under Reduce Motion)
+        let pulse: CGFloat = A11y.reduceMotion ? 0.35 : 0.35 + 0.15 * CGFloat(sin(elapsed * 7))
         for p in GameState.partTypes {
             if p == flashType {
                 setPartEmissive(p, 0x22c55e, 0.55) // fix moment: green flash
             } else if p == selectedPart {
-                setPartEmissive(p, 0x22d3ee, 0.35 + 0.15 * CGFloat(sin(elapsed * 7)))
+                setPartEmissive(p, 0x22d3ee, pulse)
             } else {
                 setPartEmissive(p, 0x000000, 0)
             }
@@ -808,7 +811,8 @@ final class GarageScene: SceneController {
         }
 
         // owner idle: bob like the friends + an occasional phone-look head tilt
-        if let owner, ownerWalk == nil, shakeT <= 0 {
+        // (frozen under Reduce Motion)
+        if let owner, ownerWalk == nil, shakeT <= 0, !A11y.reduceMotion {
             owner.position.y = Float(abs(sin(elapsed * 2 + 0.9)) * 0.05)
             if let head = owner.childNode(withName: "head", recursively: true) {
                 head.eulerAngles.x = elapsed.truncatingRemainder(dividingBy: 9) < 1.5 ? 0.55 : 0

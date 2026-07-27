@@ -35,33 +35,59 @@ struct StealMinigameView: View {
         (95 + 20 * Double(tier - 1)) * (reduceMotion ? 0.6 : 1)
     }
 
+    /// VoiceOver users can't play a timing bar — swap in explicit choices.
+    /// `-vo-sim` debug arg forces this path for tests/screenshots.
+    private var accessibleMode: Bool {
+        UIAccessibility.isVoiceOverRunning || ProcessInfo.processInfo.arguments.contains("-vo-sim")
+    }
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.66).ignoresSafeArea()
             VStack(spacing: 16) {
                 Text(title)
                     .font(.title3.bold())
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Canvas { ctx, size in
-                            drawBar(ctx: ctx, size: size)
-                        }
-                        if let flash {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(flashColor(flash).opacity(0.55))
+                if accessibleMode {
+                    // accessible alternative: explicit risk choices, same zone outcomes
+                    Text("Choose your approach:")
+                        .font(.footnote)
+                        .foregroundStyle(Color.sgsMuted)
+                    SGSButton(title: "Careful swap", a11y: "mg-careful",
+                              hint: "Slow and careful — usually works, but might trip the alarm") {
+                        resolveAccessible(zone: Double.random(in: 0..<1) < 0.6 ? "green" : "red")
+                    }
+                    SGSButton(title: "Quick grab", ghost: true, a11y: "mg-quick",
+                              hint: "Grab and go — the customer always notices a bit") {
+                        resolveAccessible(zone: "yellow")
+                    }
+                    SGSButton(title: "Force it", tint: Color.sgsBad, a11y: "mg-force",
+                              hint: "You'll get caught") {
+                        resolveAccessible(zone: "red")
+                    }
+                } else {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Canvas { ctx, size in
+                                drawBar(ctx: ctx, size: size)
+                            }
+                            if let flash {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(flashColor(flash).opacity(0.55))
+                            }
                         }
                     }
+                    .frame(height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .contentShape(Rectangle())
+                    .onTapGesture { resolve() }
+                    .accessibilityIdentifier("mg-bar")
+                    Text("Tap the bar or SWAP when the marker is in the green zone!")
+                        .font(.footnote)
+                        .foregroundStyle(Color.sgsMuted)
+                        .multilineTextAlignment(.center)
+                    SGSButton(title: "SWAP!", big: true, a11y: "mg-swap",
+                              hint: "Locks the marker") { resolve() }
                 }
-                .frame(height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .contentShape(Rectangle())
-                .onTapGesture { resolve() }
-                .accessibilityIdentifier("mg-bar")
-                Text("Tap the bar or SWAP when the marker is in the green zone!")
-                    .font(.footnote)
-                    .foregroundStyle(Color.sgsMuted)
-                    .multilineTextAlignment(.center)
-                SGSButton(title: "SWAP!", big: true, a11y: "mg-swap") { resolve() }
             }
             .padding(24)
             .frame(maxWidth: 480)
@@ -178,6 +204,25 @@ struct StealMinigameView: View {
         case "green": return .sgsGood
         case "yellow": return .sgsWarn
         default: return .sgsBad
+        }
+    }
+
+    /// Accessible-mode resolution: same zone outcomes as the timing bar.
+    /// `-mgzone` still forces a deterministic zone when passed.
+    private func resolveAccessible(zone: String) {
+        guard !resolved else { return }
+        resolved = true
+        var zone = zone
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-mgzone"), i + 1 < args.count,
+           ["green", "yellow", "red"].contains(args[i + 1]) {
+            zone = args[i + 1]
+        }
+        flash = zone
+        if zone == "green" { AudioEngine.shared.success() }
+        else if zone == "red" { AudioEngine.shared.fail() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            onResolve(zone)
         }
     }
 

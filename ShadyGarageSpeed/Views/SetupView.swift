@@ -45,10 +45,10 @@ struct SetupView: View {
                             }
                             Text(f.name).font(.headline)
                             Text(f.tag)
-                                .font(.system(size: 13, weight: .bold))
+                                .font(sgsFont(13, .bold))
                                 .foregroundStyle(Color.sgsAccent)
                             Text(f.desc)
-                                .font(.system(size: 12))
+                                .font(sgsFont(12))
                                 .foregroundStyle(Color.sgsMuted)
                                 .multilineTextAlignment(.center)
                         }

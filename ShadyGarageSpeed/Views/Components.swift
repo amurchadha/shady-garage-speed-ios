@@ -28,6 +28,52 @@ func tierColor(_ tier: Int) -> Color {
     Color(rgb: GameState.tierColors[min(4, max(1, tier))])
 }
 
+// MARK: - dynamic-type font helper
+
+/// Dynamic-Type-scaling font. `.font(.system(size:))` is FIXED (ignores the
+/// content-size slider) — this maps a point size to the nearest NAMED text
+/// style, which scales for real. Weights/design are preserved.
+func sgsFont(_ size: CGFloat, _ weight: Font.Weight = .regular, mono: Bool = false) -> Font {
+    let style: Font.TextStyle
+    switch size {
+    case ..<11:      style = .caption2
+    case 11..<12.5:  style = .caption
+    case 12.5..<14:  style = .footnote
+    case 14..<15.5:  style = .subheadline
+    case 15.5..<16.5: style = .callout
+    case 16.5..<18:  style = .body
+    default:         style = .title3
+    }
+    return .system(style, design: mono ? .monospaced : .default, weight: weight)
+}
+
+// MARK: - accessibility helpers
+
+import UIKit
+
+enum A11y {
+    /// Mirrors UIAccessibility.isReduceMotionEnabled, kept live via notification.
+    private(set) static var reduceMotion = UIAccessibility.isReduceMotionEnabled
+
+    /// Call once at app start to keep reduceMotion in sync.
+    static func observeMotionChanges() {
+        NotificationCenter.default.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification,
+                                               object: nil, queue: .main) { _ in
+            reduceMotion = UIAccessibility.isReduceMotionEnabled
+        }
+    }
+
+    /// VoiceOver announcement for game events (toasts, results, warnings).
+    static func announce(_ text: String) {
+        UIAccessibility.post(notification: .announcement, argument: text)
+    }
+
+    /// New screen announced on phase switches (screen-rect change + text).
+    static func screenChanged(_ text: String) {
+        UIAccessibility.post(notification: .screenChanged, argument: text)
+    }
+}
+
 // MARK: - panel container
 
 struct Panel<Content: View>: View {
@@ -55,6 +101,8 @@ struct SGSButton: View {
     var disabled = false
     var a11y: String? = nil
     var systemImage: String? = nil // SF Symbol chrome (replaces emoji where set)
+    var label: String? = nil     // VoiceOver label (identifiers stay for tests)
+    var hint: String? = nil      // VoiceOver hint for non-obvious actions
     var action: () -> Void = {}
 
     var body: some View {
@@ -69,12 +117,12 @@ struct SGSButton: View {
                 }
                 if !title.isEmpty {
                     Text(title)
-                        .font(.system(size: tiny ? 13 : small ? 14 : big ? 18 : 16, weight: .bold))
+                        .font(sgsFont(tiny ? 13 : small ? 14 : big ? 18 : 16, .bold))
                 }
             }
             .padding(.horizontal, tiny ? 10 : small ? 14 : big ? 30 : 20)
             .padding(.vertical, tiny ? 5 : small ? 7 : big ? 14 : 10)
-            .frame(minHeight: big ? 48 : nil)
+            .frame(minHeight: big ? 48 : 44) // ≥44pt touch target at every size
             .background(ghost ? Color.clear : (tint ?? Color.sgsAccent))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: tiny ? 8 : small ? 10 : 12))
@@ -85,6 +133,8 @@ struct SGSButton: View {
         .opacity(disabled ? 0.38 : 1)
         .disabled(disabled)
         .accessibilityIdentifier(a11y ?? "")
+        .accessibilityLabel(label ?? title)
+        .accessibilityHint(hint ?? "")
     }
 }
 
@@ -94,7 +144,7 @@ struct TierBadge: View {
     let tier: Int
     var body: some View {
         Text(GameState.tierNames[min(4, max(1, tier))])
-            .font(.system(size: 11, weight: .bold))
+            .font(sgsFont(11, .bold))
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(tierColor(tier).opacity(0.22))
@@ -112,9 +162,10 @@ struct StatBar: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(name)
-                .font(.system(size: 13, weight: .semibold))
+                .font(sgsFont(13, .semibold))
                 .foregroundStyle(Color.sgsMuted)
                 .frame(width: 64, alignment: .leading)
+                .accessibilityHidden(true) // the combined label carries the meaning
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.12))
@@ -123,11 +174,14 @@ struct StatBar: View {
                 }
             }
             .frame(height: 10)
+            .accessibilityHidden(true) // decorative bar
             Text("\(value)")
-                .font(.system(size: 13, weight: .bold))
+                .font(sgsFont(13, .bold))
                 .frame(width: 30, alignment: .trailing)
                 .accessibilityIdentifier("stat-\(name.lowercased())")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(name) \(min(100, max(0, value))) of 100")
     }
 }
 
@@ -138,6 +192,7 @@ struct HoldButton: View {
     var tint: Color = .white
     var diameter: CGFloat = 64
     var a11y: String? = nil
+    var a11yLabel: String? = nil // human words for VoiceOver ("Gas", not "GAS glyph")
     @Binding var pressed: Bool
     /// @GestureState auto-resets when the gesture ends OR is cancelled by the
     /// system (home swipe, call banner) — the old onEnded-only approach could
@@ -146,7 +201,7 @@ struct HoldButton: View {
 
     var body: some View {
         Text(label)
-            .font(.system(size: 15, weight: .black))
+            .font(sgsFont(15, .black))
             .foregroundStyle(.white)
             .frame(width: diameter, height: diameter)
             .background(tint.opacity(held ? 0.85 : 0.4))
@@ -158,7 +213,7 @@ struct HoldButton: View {
                     .updating($held) { _, state, _ in state = true }
             )
             .onChange(of: held) { _, v in pressed = v }
-            .accessibilityLabel(label)
+            .accessibilityLabel(a11yLabel ?? label)
             .accessibilityAddTraits(.isButton)
             .accessibilityIdentifier(a11y ?? "")
     }
@@ -183,7 +238,7 @@ struct SpeechBubble: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(text)
-                .font(.system(size: 13, weight: .semibold))
+                .font(sgsFont(13, .semibold))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
@@ -206,7 +261,7 @@ struct CashPopView: View {
     @State private var rise = false
     var body: some View {
         Text(text)
-            .font(.system(size: 15, weight: .heavy))
+            .font(sgsFont(15, .black))
             .foregroundStyle(negative ? Color.sgsBad : Color.sgsGood)
             .shadow(color: .black.opacity(0.5), radius: 3, y: 1)
             .offset(y: rise ? -36 : 0)
@@ -231,7 +286,7 @@ struct ToastOverlay: View {
                         .frame(width: 4)
                         .padding(.vertical, 4)
                     Text(t.text)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(sgsFont(14, .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
