@@ -43,6 +43,13 @@ struct MenuView: View {
                     SGSButton(title: "How to Play", ghost: true, big: true, a11y: "howto") { showHowTo = true }
                 }
                 .frame(maxWidth: 320)
+
+                // version + build from Info.plist, plus the difficulty mode (#90)
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")) · \(app.game.difficulty.capitalized)")
+                    .font(sgsFont(12))
+                    .foregroundStyle(Color.sgsMuted.opacity(0.8))
+                    .padding(.top, 8)
+                    .accessibilityIdentifier("menu-footer")
             }
             .multilineTextAlignment(.center)
             .foregroundStyle(Color.sgsText)

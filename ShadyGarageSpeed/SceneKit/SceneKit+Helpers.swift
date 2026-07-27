@@ -121,7 +121,8 @@ func sphereNode(radius: CGFloat, color: UIColor, segments: Int = 8,
 /// When `appActive` is false (backgrounded/inactive) the sim freezes outright —
 /// no integration, no dt spike on resume.
 class SceneController: NSObject, ObservableObject, SCNSceneRendererDelegate {
-    let scene = SCNScene()
+    /// Re-created on track switch (RaceScene.reloadTrack).
+    var scene = SCNScene()
     let cameraNode = SCNNode()
     private var lastTime: TimeInterval = 0
     /// The SCNView rendering this scene (set by SceneKitView) — for screen projection.

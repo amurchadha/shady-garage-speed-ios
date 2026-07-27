@@ -57,9 +57,16 @@ final class AppState: ObservableObject {
         didSet {
             guard phase != oldValue else { return }
             A11y.screenChanged(phaseDescription) // "screen changed" + phase name
+            // garage radio everywhere except the race loop (which takes over at GO)
+            switch phase {
+            case .race: break
+            default: AudioEngine.shared.musicStart("garage")
+            }
         }
     }
     @Published var lastFinish: FinishData?
+    /// Pre-race track-select sheet (opened by the garage topbar Race button).
+    @Published var showTrackSheet = false
 
     /// VoiceOver phase names ("Garage. Day 3." style).
     private var phaseDescription: String {
@@ -136,6 +143,8 @@ final class AppState: ObservableObject {
                                                object: nil, queue: .main) { [weak self] _ in
             self?.thermalLimited = seriousOrWorse()
         }
+
+        AudioEngine.shared.musicStart("garage") // garage radio from the menu
     }
 
     // MARK: navigation
@@ -184,23 +193,33 @@ final class AppState: ObservableObject {
 
     func goRace() {
         garageScene.exitPlay()
+        showTrackSheet = true // topbar Race opens the track-select sheet first
+    }
+
+    /// Direct race start on a track (sheet row, debug deep-link, race again).
+    func startRaceOnTrack(_ i: Int) {
+        showTrackSheet = false
         raceChallenge = nil
         raceScene.challengeIndex = nil
+        raceScene.trackIndex = i
         phase = .race
         raceScene.startRun()
     }
 
     /// Pink-slip challenge: race the rival at ladder position `pos` (0–3).
+    /// Rival challenges always stay on Classic.
     func startChallenge(_ pos: Int) {
         guard GameState.ladderRival(pos) != nil else { return }
         garageScene.exitPlay()
         raceChallenge = pos
         raceScene.challengeIndex = pos
+        raceScene.trackIndex = 0
         phase = .race
         raceScene.startRun()
     }
 
     func raceAgain() {
+        showTrackSheet = false
         raceChallenge = nil
         raceScene.challengeIndex = nil
         phase = .race
@@ -212,7 +231,7 @@ final class AppState: ObservableObject {
         switch name {
         case "garage": continueGame()
         case "build":  goBuild()
-        case "race":   goRace()
+        case "race":   startRaceOnTrack(0) // debug races go straight to Classic
         case "setup":  goSetup()
         default:       break
         }
@@ -232,6 +251,10 @@ final class AppState: ObservableObject {
         if let i = args.firstIndex(of: "-rain"), i + 1 < args.count {
             let v = args[i + 1]
             raceScene.forcedRain = v == "on" ? true : v == "off" ? false : nil
+        }
+        // -wx rain|fog|clear: force weather (fog = 4th condition, headlights on)
+        if let i = args.firstIndex(of: "-wx"), i + 1 < args.count {
+            raceScene.forcedWX = args[i + 1]
         }
         if args.contains("-autodrive") { raceScene.autoDrive = true }
         if args.contains("-ladderwin") { raceScene.ladderWin = true }
@@ -260,8 +283,17 @@ final class AppState: ObservableObject {
         if let i = args.firstIndex(of: "-arch"), i + 1 < args.count {
             game.forcedArchetype = args[i + 1]
         }
+        // -track N (with -phase race): race the Nth track instead of Classic
+        var debugTrack = 0
+        if let i = args.firstIndex(of: "-track"), i + 1 < args.count, let t = Int(args[i + 1]) {
+            debugTrack = t
+        }
         if let i = args.firstIndex(of: "-phase"), i + 1 < args.count {
-            applyDebugPhase(args[i + 1])
+            if args[i + 1] == "race" {
+                startRaceOnTrack(debugTrack)
+            } else {
+                applyDebugPhase(args[i + 1])
+            }
         }
         // deep-link a pink-slip race: -phase race -challenge N (after -phase so
         // goRace's challenge reset can't clobber it)
@@ -269,6 +301,11 @@ final class AppState: ObservableObject {
            let pos = Int(args[i + 1]) {
             startChallenge(pos)
         }
+        // -tracksheet / -settingsheet: open those sheets directly (screenshots)
+        if args.contains("-tracksheet") { showTrackSheet = true }
+        if args.contains("-golden") { game.forcedGolden = true }
+        // -notut: suppress the first-run tutorial (screenshots)
+        if args.contains("-notut") { game.tutorialSeen = true }
         // -paused: freeze the race at the countdown for pause-overlay screenshots
         if args.contains("-paused"), phase == .race {
             raceScene.setPaused(true)

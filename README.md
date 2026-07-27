@@ -125,6 +125,11 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-cash N` — set cash (deterministic economy tests).
 - `-vo-sim` — force the accessible (button-based) steal minigame, as if VoiceOver were on.
 - `-dts ax1..ax5` — force a content size category for Dynamic Type screenshots (ax5 = A11y XXXL).
+- `-track N` — race the Nth track (0 = Classic, 1 = Figure-8 Ridge) with `-phase race`.
+- `-wx rain|fog|clear` — force race weather (fog is the 4th condition).
+- `-golden` — every generated customer is golden (screenshots).
+- `-tracksheet` / `-settingsheet` — open the track-select / settings sheets directly.
+- `-notut` — suppress the first-run tutorial.
 - `-contract <type> <minTier>` — seed an active contracts-board order.
 - `-cop` — every heat ≥70 arrival triggers a cop visit (deterministic cop-flow tests).
 - `-debughud` — show a live customer-car node count under the prompt (ghost-car regression hook).
@@ -167,6 +172,10 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 `fix-N` / `steal-N` (job rows), `finish-job`, `job-total`, `hud-day`, `hud-cash`,
 `hud-suspicion`, `hud-heat`, `mute-toggle`, `garage-prompt`, `mg-swap`, `cop-bribe`, `cop-laylow`,
 `arch-badge`, `watch-chip`, `rushed-chip`, `debug-cars`, `speech-bubble`, `lugnut-card`,
+`golden-badge`, `tutorial-card`, `tutorial-next`, `tutorial-skip`, `menu-footer`,
+`nav-settings`, `set-music`, `set-sfx`, `set-rm`, `set-diff-<mode>`,
+`set-export`, `set-restore`, `set-reset`, `settings-close`,
+`track-row-N`, `track-close`,
 `ladder-close`, `ladder-row-N`, `ladder-challenge`, `ladder-legend`,
 `pinkslip-banner`, `results-pinkslip`, `legend-overlay`, `legend-dismiss`, `menu-goal`,
 `contract-card`, `contract-fulfill`, `nav-crew`, `crew-close`, `hire-N`,
@@ -256,6 +265,32 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 - **Reduce Motion**: minigame marker ×0.6, owner bob/phone-tilt frozen, turntable
   stopped, highlight pulse constant, cash tween instant, countdown/lugnut transitions
   fade-only.
+
+## Meta & platform (parity batch)
+
+- **First-run tutorial**: 3 coach marks on the first garage visit (fix-or-steal /
+  suspicion+heat / build-bay+race), Next/Skip, persisted `tutorialSeen` — never again.
+- **Settings screen** (⚙️ topbar): music + SFX bus sliders (live), reduced-motion
+  override, difficulty (Chill/Normal/Cutthroat), save export (JSON share sheet),
+  restore-previous-save, reset-everything (double-confirm). The previous save blob is
+  kept before every overwrite (`sgs_save_prev`).
+- **Audio buses + radio**: `sfxBus`/`musicBus` split (sliders persisted); garage radio
+  (72bpm Am–F–C–G chiptune from the web's `SONGS.garage`, 3-step-ahead buffer queue,
+  ducked −6dB under SFX) in menu/garage/build; the 128bpm race loop starts at GO and
+  stops at finish/forfeit/exit. (Fix: `musicPlayer.stop()` is never called under the
+  audio lock — that ordering deadlocked the render thread against the audio worker.)
+- **Second track**: TRACKS table — Classic "Meadow Loop" (par 22) and "Figure-8 Ridge"
+  (par 16, peanut-8 waist clearance ~24 > 16-wide road). Pre-race track-select sheet
+  with per-track best laps (`bestLaps{}`, legacy scalar migrates to classic). Rival
+  challenges stay on Classic. Race rebuilds the scene on switch.
+- **Fog weather**: rain 30% / fog 20% / clear 50% — dense fog (~8–60u), muted palette,
+  `· FOG` label, headlights on. `-wx rain|fog|clear` debug override.
+- **Customers**: sedan/hatch/truck bodies (50/25/25, trucks lean Big Spender); golden
+  customer (3%, gold paint, all parts ≥t3, ×3 pay, ✨ badge, arrival fanfare, Lugnut
+  headline); elite pity (25 customers without a t4 forces one, persisted).
+- **Difficulty**: Chill/Normal/Cutthroat multipliers (suspicion/heat/payment/minigame
+  green width) applied everywhere; persisted outside the save; shown in the menu footer
+  next to the version+build from Info.plist.
 
 ## Notes
 

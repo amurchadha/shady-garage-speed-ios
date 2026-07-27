@@ -83,8 +83,18 @@ struct BuildView: View {
                     if let c = game.contract {
                         HStack(spacing: 10) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("📜 Contract")
-                                    .font(sgsFont(12, .black))
+                                HStack(spacing: 6) {
+                                    Text("📜 Contract")
+                                        .font(sgsFont(12, .black))
+                                    let rk = GameState.contractRanks[c.rank] ?? GameState.contractRanks["standard"]!
+                                    Text(rk.badge)
+                                        .font(sgsFont(10, .bold))
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background((c.rank == "rush" ? Color.sgsBad : c.rank == "premium" ? Color(rgb: 0xa855f7) : Color.sgsMuted).opacity(0.25))
+                                        .foregroundStyle(c.rank == "rush" ? Color.sgsBad : c.rank == "premium" ? Color(rgb: 0xa855f7) : Color.sgsMuted)
+                                        .clipShape(Capsule())
+                                }
                                 Text("\(GameState.tierNames[c.minTier]) \(GameState.partLabels[c.type] ?? c.type) · by Day \(c.deadline)")
                                     .font(sgsFont(12))
                                     .foregroundStyle(Color.sgsMuted)

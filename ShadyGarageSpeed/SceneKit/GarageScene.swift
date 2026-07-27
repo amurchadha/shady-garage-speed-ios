@@ -88,6 +88,7 @@ final class GarageScene: SceneController {
     @Published private(set) var lugnut: String? = nil
     private var dayEvents = Set<String>()
     private static let headlines: [String: [String]] = [
+        "golden":     ["GOLDEN CAR SPOTTED — LOCALS STUNNED", "SHINY CAR, SHINY PAYDAY AT LOCAL GARAGE"],
         "rage":       ["CUSTOMER STORMS OUT: 'MY PARTS VANISHED!'", "LOCAL GARAGE ACCUSED OF PART SWAP"],
         "raid":       ["COPS RAID CHOP SHOP — PARTS SEIZED", "CRACKDOWN: GARAGE FINED IN RAID"],
         "steal":      ["MYSTERY: SPORT PARTS VANISH MID-SERVICE", "RESIDENTS REPORT 'TOO QUICK' MECHANIC"],
@@ -95,7 +96,7 @@ final class GarageScene: SceneController {
         "bigspender": ["BIG SPENDER SPOTTED AT LOCAL GARAGE", "CASH FLOWS AS HIGH ROLLER PAYS UP"],
         "clean":      ["HONEST WORK PAYS: GARAGE THRIVES", "NO DRAMA DAY — A RARE EVENT"],
     ]
-    private static let eventPriority = ["rage", "raid", "steal", "rush", "bigspender", "clean"]
+    private static let eventPriority = ["golden", "rage", "raid", "steal", "rush", "bigspender", "clean"]
 
     // MARK: fix moment juice
     private var flashType: String? = nil
@@ -377,7 +378,7 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         let c = game.generateCustomer()
         customer = c
-        let car = CarFactory.makeCar(color: c.color)
+        let car = CarFactory.makeCar(color: c.color, bodyStyle: c.bodyStyle)
         car.position = SCNVector3(38, 0, 24)
         car.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
         scene.rootNode.addChildNode(car)
@@ -418,6 +419,7 @@ final class GarageScene: SceneController {
                     self.rushedRemaining = Int(Self.rushedWindow)
                 }
             }
+            if c.golden { self.sfx.fanfare() } // golden customer arrival fanfare
             self.say(archetype, 3) // arrival line over the owner
         })
     }
@@ -618,17 +620,20 @@ final class GarageScene: SceneController {
         if ownerWatching { mult *= 1.5 } // stealing under the owner's nose
         if zone == "red" {
             addSuspicion(35 * mult)
-            game.heat = min(100, game.heat + 3) // red leaves evidence: +3 heat
+            game.heat = min(100, game.heat + Int((3 * game.diffMods.heat).rounded())) // red leaves evidence
             toasts.push("Caught fiddling! Suspicion way up.", .bad)
-            // pratfall roulette: 1/3 CAR ALARM (+10 suspicion), else flavor
-            switch Int.random(in: 0..<3) {
-            case 0:
-                addSuspicion(10)
-                toasts.push("🚨 You set off the CAR ALARM!", .bad)
-            case 1:
-                toasts.push("You slipped on an oil slick. Real smooth.", .bad)
-            default:
-                toasts.push("Butterfingers! You dropped the part.", .bad)
+            // pratfall roulette: 1/3 CAR ALARM (+10 suspicion), else flavor.
+            // Skipped under -mgzone so test outcomes stay deterministic.
+            if !ProcessInfo.processInfo.arguments.contains("-mgzone") {
+                switch Int.random(in: 0..<3) {
+                case 0:
+                    addSuspicion(10)
+                    toasts.push("🚨 You set off the CAR ALARM!", .bad)
+                case 1:
+                    toasts.push("You slipped on an oil slick. Real smooth.", .bad)
+                default:
+                    toasts.push("Butterfingers! You dropped the part.", .bad)
+                }
             }
             Haptics.notify(.error)
         } else {
@@ -646,7 +651,7 @@ final class GarageScene: SceneController {
             customer = c
             jobActions += 1
             jobSteals += 1
-            game.heat = min(100, game.heat + 6 + 2 * tier)
+            game.heat = min(100, game.heat + Int(((6.0 + 2.0 * Double(tier)) * game.diffMods.heat).rounded()))
             if game.heat >= 35 && !game.heatHintShown {
                 game.heatHintShown = true // one-time onboarding, persisted
                 toasts.push("🌡️ Heat draws the cops — they visit at 70, raid at 100. Clean jobs cool things down.", .warn)
@@ -664,7 +669,7 @@ final class GarageScene: SceneController {
 
     private func addSuspicion(_ v: Double) {
         let before = game.suspicion
-        game.suspicion = min(100, Int((Double(game.suspicion) + v).rounded()))
+        game.suspicion = min(100, Int((Double(game.suspicion) + v * game.diffMods.susp).rounded()))
         if game.suspicion >= 90 && before < 90 && !rage90Warned {
             rage90Warned = true
             toasts.push("Customer is very suspicious…", .warn)
@@ -677,10 +682,13 @@ final class GarageScene: SceneController {
         guard jobState == "inspect", jobActions >= 1, let c = customer else { return }
         // rushed customers pay ×1.5 only if the job finished inside the 45s window
         let onTime = c.archetype != "rushed" || (elapsed - inspectStartT) <= Self.rushedWindow
-        let payment = Int((Double(jobTotal) * game.payMult * game.archPayMult(c.archetype, onTime: onTime)).rounded())
+        var mult = game.payMult * game.archPayMult(c.archetype, onTime: onTime) * game.diffMods.pay
+        if c.golden { mult *= 3 } // golden customer pays triple
+        let payment = Int((Double(jobTotal) * mult).rounded())
         game.cash += payment
         game.customersServed += 1
         game.advanceDay()
+        if c.golden { dayEvents.insert("golden") }
         if c.archetype == "rushed" && onTime { dayEvents.insert("rush") }
         if c.archetype == "bigspender" { dayEvents.insert("bigspender") }
         if jobSteals == 0 {

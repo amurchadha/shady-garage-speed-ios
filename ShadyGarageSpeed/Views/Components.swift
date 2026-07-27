@@ -52,14 +52,26 @@ func sgsFont(_ size: CGFloat, _ weight: Font.Weight = .regular, mono: Bool = fal
 import UIKit
 
 enum A11y {
-    /// Mirrors UIAccessibility.isReduceMotionEnabled, kept live via notification.
+    /// Mirrors UIAccessibility.isReduceMotionEnabled unless the user overrides it
+    /// in Settings (persisted; override only forces ON, like the web setting).
     private(set) static var reduceMotion = UIAccessibility.isReduceMotionEnabled
+
+    /// Settings-sheet override: nil = follow the OS, true = force reduced motion.
+    static var userOverride: Bool? = UserDefaults.standard.object(forKey: "sgs_rm_override") as? Bool {
+        didSet {
+            UserDefaults.standard.set(userOverride, forKey: "sgs_rm_override")
+            reduceMotion = userOverride ?? UIAccessibility.isReduceMotionEnabled
+        }
+    }
 
     /// Call once at app start to keep reduceMotion in sync.
     static func observeMotionChanges() {
+        reduceMotion = userOverride ?? UIAccessibility.isReduceMotionEnabled
         NotificationCenter.default.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification,
                                                object: nil, queue: .main) { _ in
-            reduceMotion = UIAccessibility.isReduceMotionEnabled
+            if userOverride == nil {
+                reduceMotion = UIAccessibility.isReduceMotionEnabled
+            }
         }
     }
 

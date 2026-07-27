@@ -12,6 +12,7 @@ struct StealMinigameView: View {
     let title: String
     var tier: Int = 2
     var heat: Int = 0
+    var diffGreen: Double = 1 // difficulty multiplier on the green width
     let onResolve: (String) -> Void // "green" | "yellow" | "red"
 
     @Environment(\.scenePhase) private var scenePhase
@@ -25,9 +26,9 @@ struct StealMinigameView: View {
 
     private let ticker = Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()
 
-    /// Green width: 18 − 3·(tier−1) − heat/25, floored at 6%.
+    /// Green width: (18 − 3·(tier−1) − heat/25) × difficulty, floored at 6%.
     private var greenW: Double {
-        max(6, 18 - 3 * Double(tier - 1) - Double(heat) / 25)
+        max(6, (18 - 3 * Double(tier - 1) - Double(heat) / 25) * diffGreen)
     }
 
     /// Marker speed: 95 + 20·(tier−1) %/s (×0.6 with reduce-motion).

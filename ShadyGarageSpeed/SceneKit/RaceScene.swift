@@ -103,11 +103,23 @@ final class RaceScene: SceneController {
     private var todIndex = 0
     private var raining = false
     private var sunOffset = SIMD3<Float>(30, 45, 20)
-    /// Debug overrides via launch args: -tod day|sunset|night, -rain on|off.
+    /// Debug overrides via launch args: -tod day|sunset|night, -rain on|off (legacy),
+    /// -wx rain|fog|clear.
     var forcedTOD: Int? = nil
     var forcedRain: Bool? = nil
+    var forcedWX: String? = nil
     /// Debug auto-drive via launch arg -autodrive: holds gas, steers to the centerline.
     var autoDrive = false
+
+    /// Active track (index into GameState.tracks). Changing it rebuilds the scene
+    /// (web: meshes rebuilt on switch).
+    var trackIndex = 0 {
+        didSet {
+            if trackIndex != oldValue { reloadTrack() }
+        }
+    }
+    private var track: GameState.RaceTrack { GameState.tracks[trackIndex] }
+    private var foggy = false
     /// Pink-slip mode: ladder position (0–3) set by AppState.startChallenge.
     var challengeIndex: Int? = nil
     /// Debug `-ladderwin`: the challenged rival's time is treated as 999s (auto-win).
@@ -229,6 +241,23 @@ final class RaceScene: SceneController {
         buildScene()
     }
 
+    /// Rebuild everything for the current track (fresh scene graph, re-added camera).
+    func reloadTrack() {
+        scene = SCNScene()
+        scene.rootNode.addChildNode(cameraNode)
+        lampGroup.childNodes.forEach { $0.removeFromParentNode() }
+        rainGroup.childNodes.forEach { $0.removeFromParentNode() }
+        clouds = []
+        rainDrops = []
+        wheels = []
+        carMesh = nil
+        ghost = nil
+        flames = []
+        buildTrack()
+        buildMinimapData()
+        buildScene()
+    }
+
     // MARK: - Catmull-Rom track (three.js 'catmullrom' closed, tension 0.6)
 
     private static func hermiteCR(_ p0: SIMD2<Double>, _ p1: SIMD2<Double>,
@@ -243,11 +272,7 @@ final class RaceScene: SceneController {
     }
 
     private func buildTrack() {
-        let pts: [SIMD2<Double>] = [
-            [0, -128], [60, -123], [111, -94], [132, -43], [119, 9],
-            [128, 60], [94, 102], [43, 128], [-9, 119], [-68, 128],
-            [-119, 94], [-132, 34], [-119, -26], [-77, -68], [-34, -102],
-        ]
+        let pts = track.points // control points from the active TRACKS entry
         let l = pts.count
         let tension = 0.6
         func evalCurve(_ t: Double) -> SIMD2<Double> {
@@ -428,7 +453,7 @@ final class RaceScene: SceneController {
                                      centers[i].y + n.y * 9.3 * side)
                 if k % 2 == 0 { redT.append((p, yawB, 1)) } else { whiteT.append((p, yawB, 1)) }
             }
-            i += 6
+            i += track.barrierEvery // per-track barrier density
             k += 1
         }
         scatter(redTemplate, redT, into: scene.rootNode)
@@ -449,10 +474,10 @@ final class RaceScene: SceneController {
         gantry.eulerAngles = SCNVector3(0, startYaw, 0)
         scene.rootNode.addChildNode(gantry)
 
-        // trees, placed away from the road
+        // trees, placed away from the road (count per track)
         var treePts: [SIMD2<Float>] = []
         var guardN = 0
-        while treePts.count < 64 && guardN < 600 {
+        while treePts.count < track.treeCount && guardN < 600 {
             guardN += 1
             let x = (Float.random(in: 0..<1) - 0.5) * 370
             let z = (Float.random(in: 0..<1) - 0.5) * 370
@@ -665,21 +690,31 @@ final class RaceScene: SceneController {
 
     private func applyConditions() {
         todIndex = forcedTOD ?? (game.raceCount % 3)
-        raining = forcedRain ?? (Double.random(in: 0..<1) < 0.35)
+        // weather: rain 30% · fog 20% · clear 50% (-wx rain|fog|clear forces it)
+        let wx = forcedWX ?? (forcedRain == true ? "rain" : forcedRain == false ? "clear" : nil)
+        if let wx {
+            raining = wx == "rain"
+            foggy = wx == "fog"
+        } else {
+            let w = Double.random(in: 0..<1)
+            raining = w < 0.30
+            foggy = !raining && w < 0.50
+        }
         game.raceCount += 1
         game.save()
         let c = Self.tods[todIndex]
 
-        // rain dims ~12% sky / 10% ground / 15% road (web glow-up: stays readable)
-        let sky = raining ? shade(c.sky, 0.88) : UIColor(rgb: c.sky)
+        // dimming: rain ~12% / fog ~15% (muted fog palette, stays readable)
+        let dim: CGFloat = raining ? 0.88 : foggy ? 0.85 : 1
+        let sky = dim < 1 ? shade(c.sky, dim) : UIColor(rgb: c.sky)
         scene.background.contents = sky
         scene.fogColor = sky
-        scene.fogStartDistance = c.fogNear
-        scene.fogEndDistance = c.fogFar
+        scene.fogStartDistance = foggy ? 8 : c.fogNear   // dense fog: ~60u visibility
+        scene.fogEndDistance = foggy ? 60 : c.fogFar
 
-        // sky IBL for the PBR materials, scaled per time-of-day (+ reduced rain dim)
+        // sky IBL for the PBR materials, scaled per time-of-day (+ weather dim)
         applySkyEnvironment(scene, intensity: (todIndex == 0 ? 1.0 : todIndex == 1 ? 0.7 : 0.25)
-                                              * (raining ? 0.85 : 1))
+                                              * (raining ? 0.85 : foggy ? 0.85 : 1))
         // bloom per TOD: subtle by day, glowing lamps/flames at night
         cameraNode.camera?.bloomIntensity = todIndex == 0 ? 0.2 : todIndex == 1 ? 0.5 : 0.9
 
@@ -689,15 +724,15 @@ final class RaceScene: SceneController {
         dirLight.color = UIColor(rgb: c.sunColor)
         sunOffset = c.sunPos
 
-        groundMat.diffuse.contents = raining ? shade(c.ground, 0.9) : UIColor(rgb: c.ground)
+        groundMat.diffuse.contents = dim < 1 ? shade(c.ground, raining ? 0.9 : 0.85) : UIColor(rgb: c.ground)
         groundMat.ambient.contents = groundMat.diffuse.contents
         let roadColor = UIColor(rgb: c.road)
-        roadMat.diffuse.contents = raining ? shade(c.road, 0.85) : roadColor
+        roadMat.diffuse.contents = dim < 1 ? shade(c.road, 0.85) : roadColor
         roadMat.ambient.contents = roadMat.diffuse.contents
 
         lampGroup.isHidden = todIndex != 2
-        rainGroup.isHidden = !raining
-        let text = c.name + (raining ? " · RAIN" : "")
+        rainGroup.isHidden = !raining // fog has no streaks (rain keeps them + grip)
+        let text = c.name + (raining ? " · RAIN" : foggy ? " · FOG" : "")
         DispatchQueue.main.async { self.conditionsText = text }
     }
 
@@ -733,8 +768,8 @@ final class RaceScene: SceneController {
             flames.append(f)
         }
 
-        // night: headlights aimed forward
-        if todIndex == 2 {
+        // headlights at night and in dense fog
+        if todIndex == 2 || foggy {
             for x in [Float(-0.6), Float(0.6)] {
                 let spot = SCNLight()
                 spot.type = .spot
@@ -824,6 +859,7 @@ final class RaceScene: SceneController {
         sfx.nos(false)
         Haptics.nosRumble(false)
         sfx.engineSound(false)
+        sfx.musicStop()
         DispatchQueue.main.async { self.countdownText = nil }
         toasts.push("Race forfeited", .warn)
         onExit?()
@@ -839,6 +875,7 @@ final class RaceScene: SceneController {
         sfx.nos(false)
         Haptics.nosRumble(false)
         sfx.engineSound(false)
+        sfx.musicStop()
         DispatchQueue.main.async { self.countdownText = nil }
     }
 
@@ -885,10 +922,14 @@ final class RaceScene: SceneController {
         sfx.nos(false)
         Haptics.nosRumble(false)
         sfx.engineSound(false)
+        sfx.musicStop() // race loop ends at the line
         for f in flames { f.isHidden = true }
         let lap = raceT
-        let newBest = game.bestLap == nil || lap < game.bestLap!
-        let best = newBest ? lap : game.bestLap!
+        // per-track best laps (bestLaps keyed by track id)
+        let trackId = track.id
+        let priorBest = game.bestLaps[trackId]
+        let newBest = priorBest == nil || lap < priorBest!
+        let best = newBest ? lap : priorBest!
         let sum = stats.speed + stats.accel + stats.handling
         let mult = max(0.5, min(1.8, 22.0 / lap))
         // pink-slip runs pay the rival's prize only — no normal reward (web parity)
@@ -912,7 +953,10 @@ final class RaceScene: SceneController {
         Haptics.notify(.success)
 
         DispatchQueue.main.async { [game, toasts] in
-            if newBest { game.bestLap = lap }
+            if newBest {
+                game.bestLaps[trackId] = lap
+                if trackId == "classic" { game.bestLap = lap } // legacy scalar tracks classic
+            }
             if challengeResult == nil {
                 game.carValue = value
                 game.cash += reward
@@ -1023,6 +1067,7 @@ final class RaceScene: SceneController {
                 DispatchQueue.main.async { self.countdownText = "GO!" }
                 sfx.beep(880)
                 sfx.engineSound(true) // engine loop starts on GO
+                sfx.musicStart("race") // 128bpm race loop takes over from the radio
             }
         }
 

@@ -11,12 +11,13 @@ struct Part: Codable, Equatable, Identifiable {
     var stolenDay: Int? = nil // set when fenced goods were stolen today (hot)
 }
 
-/// Contracts board: a typed part order with a deadline (day) and cash reward.
+/// Contracts board: a typed part order with a deadline (day), rank, and cash reward.
 struct Contract: Codable, Equatable {
     var type: String
     var minTier: Int
     var deadline: Int
     var reward: Int
+    var rank: String = "standard" // standard | rush | premium
 }
 
 struct CarParts: Codable, Equatable {
@@ -73,6 +74,8 @@ struct Customer: Codable, Equatable {
     var color: Int
     var parts: [CustomerPart]
     var archetype: String = "regular" // regular | rushed | skeptic | bigspender
+    var bodyStyle: String = "sedan"   // sedan | hatch | truck
+    var golden: Bool = false          // 3% golden customer: all parts ≥t3, ×3 pay
 }
 
 struct Stats: Equatable {
@@ -107,6 +110,27 @@ final class GameState: ObservableObject {
     @Published var contract: Contract? = nil
     /// Hired crew (friend indices); perks apply from chosen character OR crew.
     @Published var crew: [Int] = []
+    /// First-run coach marks shown (brand-new saves only).
+    @Published var tutorialSeen = false
+    /// Customers since a tier-4 part was last seen (drought breaker at 25).
+    var elitePity = 0
+    /// Per-track best lap seconds {classic: x, ridge: y}.
+    @Published var bestLaps: [String: Double] = [:]
+
+    // MARK: settings (persisted outside the save blob, like the web's sgs_settings)
+
+    /// Chill / Normal / Cutthroat — drives the DIFF_TABLE multipliers.
+    @Published var difficulty: String = UserDefaults.standard.string(forKey: "sgs_difficulty") ?? "normal" {
+        didSet { UserDefaults.standard.set(difficulty, forKey: "sgs_difficulty") }
+    }
+
+    struct DiffMods { let susp: Double, heat: Double, pay: Double, green: Double }
+    static let diffTable: [String: DiffMods] = [
+        "chill":     DiffMods(susp: 0.6, heat: 0.5, pay: 1.2,  green: 1.3),
+        "normal":    DiffMods(susp: 1,   heat: 1,   pay: 1,    green: 1),
+        "cutthroat": DiffMods(susp: 1.4, heat: 1.5, pay: 0.85, green: 0.75),
+    ]
+    var diffMods: DiffMods { GameState.diffTable[difficulty] ?? GameState.diffTable["normal"]! }
 
     // MARK: constants (exact match with web data.js)
 
@@ -156,6 +180,35 @@ final class GameState: ObservableObject {
         guard pos >= 0, pos < rivals.count else { return nil }
         return rivals[rivals.count - 1 - pos]
     }
+
+    // MARK: race tracks (web TRACKS — control points drive Catmull-Rom centerlines)
+
+    struct RaceTrack {
+        let id: String
+        let name: String
+        let feel: String
+        let par: Double
+        let barrierEvery: Int
+        let treeCount: Int
+        let points: [SIMD2<Double>]
+    }
+    static let tracks: [RaceTrack] = [
+        RaceTrack(id: "classic", name: "Meadow Loop", feel: "long and flowing", par: 22,
+                  barrierEvery: 6, treeCount: 64, points: [
+                    [0, -128], [60, -123], [111, -94], [132, -43], [119, 9],
+                    [128, 60], [94, 102], [43, 128], [-9, 119], [-68, 128],
+                    [-119, 94], [-132, 34], [-119, -26], [-77, -68], [-34, -102],
+                  ]),
+        RaceTrack(id: "ridge", name: "Figure-8 Ridge", feel: "short and tight", par: 16,
+                  barrierEvery: 4, treeCount: 90, points: [
+                    // peanut-8: rounded waist U-turns at x≈±26 keep the 16-wide road
+                    // clear of itself (~71% of classic's length)
+                    [0, -76], [38, -72], [66, -44], [60, -20], [34, -14],
+                    [26, -6], [26, 4], [34, 10], [60, 16], [66, 42], [38, 76], [0, 78],
+                    [-38, 76], [-66, 42], [-60, 18], [-34, 12],
+                    [-26, 4], [-26, -4], [-34, -10], [-60, -16], [-66, -48], [-38, -72],
+                  ]),
+    ]
 
     // MARK: ids
 
@@ -212,16 +265,30 @@ final class GameState: ObservableObject {
 
     // MARK: contracts board
 
+    /// Contract ranks (web CONTRACT_RANKS): reward multiplier + deadline length.
+    struct ContractRank { let mult: Double, days: Int, badge: String }
+    static let contractRanks: [String: ContractRank] = [
+        "standard": ContractRank(mult: 1,   days: 3, badge: "Standard"),
+        "rush":     ContractRank(mult: 1.6, days: 1, badge: "Rush"),
+        "premium":  ContractRank(mult: 1.5, days: 4, badge: "Premium"),
+    ]
+
     /// Every day advance: expire past-deadline contracts; offer a new one every
-    /// 3rd day when none is active (minTier 2–4, deadline day+3, reward 60·tier·2.2).
+    /// 3rd day when none is active (60/20/20 rank roll).
     func advanceDay() {
         day += 1
         if let c = contract, day > c.deadline { contract = nil }
         if day % 3 == 0, contract == nil {
-            let type = GameState.partTypes.randomElement()!
-            let minTier = Int.random(in: 2...4)
-            contract = Contract(type: type, minTier: minTier, deadline: day + 3,
-                                reward: Int((60.0 * Double(minTier) * 2.2).rounded()))
+            let rr = Double.random(in: 0..<100)
+            let rank = rr < 60 ? "standard" : rr < 80 ? "rush" : "premium"
+            let r = Double.random(in: 0..<100)
+            let minTier = rank == "premium" ? (r < 70 ? 3 : 4)
+                                           : (r < 50 ? 2 : r < 85 ? 3 : 4)
+            let rk = GameState.contractRanks[rank]!
+            contract = Contract(type: GameState.partTypes.randomElement()!, minTier: minTier,
+                                deadline: day + rk.days,
+                                reward: Int((60.0 * Double(minTier) * 2.2 * rk.mult).rounded()),
+                                rank: rank)
         }
     }
 
@@ -280,6 +347,8 @@ final class GameState: ObservableObject {
 
     /// Debug launch arg `-arch <type>` pins every generated customer to an archetype.
     var forcedArchetype: String? = nil
+    /// Debug launch arg `-golden` pins every generated customer golden (screenshots).
+    var forcedGolden = false
 
     /// Archetype roll: Regular 55% / Rushed 15% / Skeptic 15% / BigSpender 15%.
     private func rollArchetype() -> String {
@@ -317,18 +386,37 @@ final class GameState: ObservableObject {
     }
 
     func generateCustomer() -> Customer {
-        let archetype = rollArchetype()
+        // body style: sedan 50% / hatch 25% / truck 25%; trucks lean Big Spender
+        let sr = Double.random(in: 0..<100)
+        let bodyStyle = sr < 50 ? "sedan" : sr < 75 ? "hatch" : "truck"
+        var archetype = rollArchetype()
+        if bodyStyle == "truck", Double.random(in: 0..<1) < 0.5 { archetype = "bigspender" }
+        if let forced = forcedArchetype { archetype = forced }
+        // golden customer: 3% — all parts tier ≥3, pays ×3
+        let golden = forcedGolden || Double.random(in: 0..<1) < 0.03
         var parts: [CustomerPart]
         repeat {
             parts = GameState.partTypes.map { type in
-                CustomerPart(id: uid(), type: type, tier: weightedTier(archetype),
+                CustomerPart(id: uid(), type: type,
+                             tier: golden ? max(3, weightedTier(archetype)) : weightedTier(archetype),
                              needsService: Double.random(in: 0..<1) < 0.6)
             }
         } while !parts.contains { $0.needsService } // at least one part must need service
+
+        // elite pity: 25 customers without a tier-4 sighting forces one tier-4 part
+        if elitePity >= 25 {
+            parts[Int.random(in: 0..<parts.count)].tier = 4
+            elitePity = 0
+        } else if parts.contains(where: { $0.tier == 4 }) {
+            elitePity = 0
+        } else {
+            elitePity += 1
+        }
+
         let name = "\(GameState.firstNames.randomElement()!) \(GameState.lastInitials.randomElement()!)."
         return Customer(id: uid(), name: name,
-                        color: GameState.pastelColors.randomElement()!, parts: parts,
-                        archetype: archetype)
+                        color: golden ? 0xf5c542 : GameState.pastelColors.randomElement()!,
+                        parts: parts, archetype: archetype, bodyStyle: bodyStyle, golden: golden)
     }
 
     func makePart(_ type: String, _ tier: Int) -> Part {
@@ -359,12 +447,16 @@ final class GameState: ObservableObject {
         copHintShown = false
         contract = nil
         crew = []
+        tutorialSeen = false
+        elitePity = 0
+        bestLaps = [:]
         save()
     }
 
     // MARK: persistence (UserDefaults, JSON, key 'sgs_save')
 
     private let saveKey = "sgs_save"
+    private let prevSaveKey = "sgs_save_prev"
 
     /// Set by AppState; fires at most once per session when persistence fails.
     var onSaveFailure: (() -> Void)?
@@ -377,10 +469,15 @@ final class GameState: ObservableObject {
             customersServed: customersServed, suspicion: suspicion, heat: heat,
             raceCount: raceCount, ladder: ladder, legend: legend,
             heatHintShown: heatHintShown, copHintShown: copHintShown,
-            contract: contract, crew: crew)
+            contract: contract, crew: crew, tutorialSeen: tutorialSeen,
+            elitePity: elitePity, bestLaps: bestLaps)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
+            // keep the previous blob before each overwrite (web #88)
+            if let prev = UserDefaults.standard.data(forKey: saveKey) {
+                UserDefaults.standard.set(prev, forKey: prevSaveKey)
+            }
             UserDefaults.standard.set(json, forKey: saveKey)
         } catch {
             if !saveFailureToastShown {
@@ -388,6 +485,52 @@ final class GameState: ObservableObject {
                 onSaveFailure?()
             }
         }
+    }
+
+    func hasBackup() -> Bool {
+        UserDefaults.standard.data(forKey: prevSaveKey) != nil
+    }
+
+    /// Restore the pre-overwrite backup blob into the active slot (Settings).
+    @discardableResult
+    func restorePrevious() -> Bool {
+        guard let json = UserDefaults.standard.data(forKey: prevSaveKey),
+              let raw = try? JSONDecoder().decode(RawSave.self, from: json) else { return false }
+        applyLoaded(raw)
+        save()
+        return true
+    }
+
+    struct SaveExport: Codable {
+        var app: String
+        var saveVersion: Int
+        var exportedAt: String
+        var data: SaveData
+    }
+
+    /// JSON export for the share sheet (web exportSave()).
+    func exportSaveJSON() -> String {
+        let data = SaveData(
+            playerName: playerName, characterIndex: characterIndex, cash: cash, day: day,
+            inventory: inventory, car: car, bestLap: bestLap, carValue: carValue,
+            customersServed: customersServed, suspicion: suspicion, heat: heat,
+            raceCount: raceCount, ladder: ladder, legend: legend,
+            heatHintShown: heatHintShown, copHintShown: copHintShown,
+            contract: contract, crew: crew, tutorialSeen: tutorialSeen,
+            elitePity: elitePity, bestLaps: bestLaps)
+        let payload = SaveExport(app: "shady-garage-speed", saveVersion: 2,
+                                 exportedAt: ISO8601DateFormatter().string(from: Date()), data: data)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let json = try? encoder.encode(payload) else { return "{}" }
+        return String(decoding: json, as: UTF8.self)
+    }
+
+    /// Wipe save + backup and reset in-memory state (Settings, double-confirmed).
+    func resetEverything() {
+        UserDefaults.standard.removeObject(forKey: saveKey)
+        UserDefaults.standard.removeObject(forKey: prevSaveKey)
+        applyLoaded(RawSave()) // all-nil backfill = fresh defaults
     }
 
     func hasSave() -> Bool {
@@ -427,6 +570,13 @@ final class GameState: ObservableObject {
         copHintShown = raw.copHintShown ?? false
         contract = raw.contract
         crew = raw.crew ?? []
+        tutorialSeen = raw.tutorialSeen ?? false
+        elitePity = max(0, raw.elitePity ?? 0)
+        bestLaps = raw.bestLaps ?? [:]
+        // migration: the legacy scalar bestLap belongs to the classic track
+        if bestLaps["classic"] == nil, let legacy = bestLap {
+            bestLaps["classic"] = legacy
+        }
     }
 }
 
@@ -451,6 +601,9 @@ struct SaveData: Codable {
     var copHintShown: Bool
     var contract: Contract?
     var crew: [Int]
+    var tutorialSeen: Bool
+    var elitePity: Int
+    var bestLaps: [String: Double]
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -473,6 +626,9 @@ struct RawSave: Codable {
     var copHintShown: Bool?
     var contract: Contract?
     var crew: [Int]?
+    var tutorialSeen: Bool?
+    var elitePity: Int?
+    var bestLaps: [String: Double]?
 }
 
 struct RawCar: Codable {

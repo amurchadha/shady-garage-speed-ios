@@ -13,6 +13,14 @@ struct GarageView: View {
     @State private var showLadder = ProcessInfo.processInfo.arguments.contains("-laddersheet")
     /// Debug launch arg `-crewsheet` opens the hire sheet directly (screenshots).
     @State private var showCrew = ProcessInfo.processInfo.arguments.contains("-crewsheet")
+    @State private var showSettings = ProcessInfo.processInfo.arguments.contains("-settingsheet")
+    /// First-run tutorial coach marks (persisted tutorialSeen flag).
+    @State private var coachIdx = -1
+    private static let coachMarks = [
+        "Customers bring you cars. Fix for cash — or Steal for parts.",
+        "Watch SUSPICION (this customer) and HEAT (the cops).",
+        "Build your racer in the Build Bay, then beat the rivals.",
+    ]
     /// Cash count-up tween state (juice): shownCash chases game.cash.
     @State private var shownCash = 0
     @State private var cashTimer: Timer?
@@ -70,7 +78,7 @@ struct GarageView: View {
                 if let idx = scene.pendingStealIndex, let c = scene.customer, c.parts.indices.contains(idx) {
                     StealMinigameView(
                         title: "Swap the \((GameState.partLabels[c.parts[idx].type] ?? "part").lowercased())…",
-                        tier: c.parts[idx].tier, heat: game.heat,
+                        tier: c.parts[idx].tier, heat: game.heat, diffGreen: game.diffMods.green,
                         onResolve: { zone in scene.resolveSteal(zone) }
                     )
                 }
@@ -119,6 +127,36 @@ struct GarageView: View {
                 .padding(.top, 64)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .allowsHitTesting(false)
+                // first-run tutorial card (3 coach marks, Next/Skip, never again)
+                if coachIdx >= 0 {
+                    VStack(spacing: 10) {
+                        Text(Self.coachMarks[coachIdx])
+                            .font(sgsFont(15, .semibold))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 10) {
+                            SGSButton(title: "Skip", ghost: true, small: true,
+                                      a11y: "tutorial-skip") { endTutorial() }
+                            SGSButton(title: coachIdx == Self.coachMarks.count - 1 ? "Got it" : "Next",
+                                      small: true, a11y: "tutorial-next") {
+                                coachIdx += 1
+                                if coachIdx >= Self.coachMarks.count { endTutorial() }
+                            }
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: 320)
+                    .background(Color.sgsCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.sgsAccent.opacity(0.6), lineWidth: 2))
+                    .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+                    .padding(.bottom, 90)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("tutorial-card")
+                    .transition(.opacity)
+                }
             }
             .dynamicTypeSize(...DynamicTypeSize.accessibility3) // content grows to A11y XL
             .onAppear {
@@ -126,6 +164,7 @@ struct GarageView: View {
                 // here too used to double-enter and could spawn a ghost customer car.
                 scene.portraitFraming = geo.size.height > geo.size.width
                 shownCash = game.cash
+                if !game.tutorialSeen && coachIdx < 0 { coachIdx = 0 } // first-run coach marks
             }
             .onChange(of: geo.size) { _, newSize in
                 scene.portraitFraming = newSize.height > newSize.width
@@ -136,6 +175,12 @@ struct GarageView: View {
             }
             .sheet(isPresented: $showCrew) {
                 HireSheet(game: game)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet(game: game)
+            }
+            .sheet(isPresented: $app.showTrackSheet) {
+                TrackSelectSheet(game: game)
             }
             .sheet(isPresented: Binding(get: { scene.showCopModal },
                                         set: { scene.showCopModal = $0 })) {
@@ -148,6 +193,12 @@ struct GarageView: View {
     }
 
     // MARK: topbar
+
+    private func endTutorial() {
+        coachIdx = -1
+        game.tutorialSeen = true // persisted — coach marks never show again
+        game.save()
+    }
 
     /// Cash count-up tween: shownCash chases game.cash at ~30Hz (juice).
     /// Instant under Reduce Motion.
@@ -209,6 +260,8 @@ struct GarageView: View {
                                   systemImage: "trophy.fill", label: "Rival ladder") { showLadder = true }
                         SGSButton(title: "", small: true, a11y: "nav-crew",
                                   systemImage: "person.2.fill", label: "Hire crew") { showCrew = true }
+                        SGSButton(title: "", small: true, a11y: "nav-settings",
+                                  systemImage: "gearshape.fill", label: "Settings") { showSettings = true }
                         Spacer()
                     }
                 }
@@ -238,6 +291,8 @@ struct GarageView: View {
                               systemImage: "person.2.fill", label: "Hire crew") { showCrew = true }
                     SGSButton(title: "Menu", ghost: true, small: true, a11y: "nav-menu",
                               systemImage: "house.fill") { app.goMenu() }
+                    SGSButton(title: "", small: true, a11y: "nav-settings",
+                              systemImage: "gearshape.fill", label: "Settings") { showSettings = true }
                     SGSButton(title: "Build", small: true, a11y: "nav-build",
                               systemImage: "wrench.fill") { app.goBuild() }
                     SGSButton(title: "Race", small: true, a11y: "nav-race",
@@ -300,6 +355,11 @@ struct GarageView: View {
                                 Text(badge)
                                     .font(sgsFont(15))
                                     .accessibilityIdentifier("arch-badge")
+                            }
+                            if c.golden {
+                                Text("✨")
+                                    .font(sgsFont(15))
+                                    .accessibilityIdentifier("golden-badge")
                             }
                             Spacer()
                             if scene.ownerWatching {

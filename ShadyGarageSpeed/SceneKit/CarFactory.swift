@@ -10,7 +10,8 @@ enum CarFactory {
     static let wheelRadius: Float = 0.42
 
     // A customer / generic car. Exact dims/positions from web makeCar().
-    static func makeCar(color: Int = 0xf87171, spoiler: Bool = false) -> SCNNode {
+    // bodyStyle: 'sedan' (default) | 'hatch' (shorter, taller rear) | 'truck' (cab + open bed).
+    static func makeCar(color: Int = 0xf87171, spoiler: Bool = false, bodyStyle: String = "sedan") -> SCNNode {
         let car = SCNNode()
         car.name = "car"
         let bodyColor = UIColor(rgb: color)
@@ -126,6 +127,48 @@ enum CarFactory {
             sp.addChildNode(boxNode(0.09, 0.32, 0.09, UIColor(rgb: 0x1f2937), 0.62, 1.12, -1.9))
             sp.addChildNode(boxNode(1.7, 0.08, 0.45, UIColor(rgb: 0x1f2937), 0, 1.3, -1.95))
             car.addChildNode(sp)
+        }
+
+        // body style variants — same 6 named part groups everywhere (web cars.js)
+        if bodyStyle == "hatch" {
+            // shorter, taller rear
+            body.scale = SCNVector3(1, 1.05, 0.88)
+            cabin.position.z = -0.62
+            cabin.scale = SCNVector3(1, 1.1, 0.82)
+            exhaust.position.z += 0.35
+            lights.enumerateChildNodes { n, _ in
+                if n.position.z < 0 { n.position.z *= 0.85 }
+            }
+            tires.enumerateChildNodes { w, _ in
+                if w.position.z < 0 { w.position.z = -1.2 }
+            }
+            if let sp = find(car, "spoiler") { sp.position.z += 0.3 }
+        } else if bodyStyle == "truck" {
+            // cab-only cabin forward + open bed behind
+            cabin.position = SCNVector3(0, 1.18, 0.55)
+            cabin.scale = SCNVector3(1.08, 1.02, 0.55)
+            body.scale = SCNVector3(body.scale.x, body.scale.y, 1.04)
+            let bedMat = FlatMat.lit(shade(color, 0.8))
+            let bed = SCNNode()
+            bed.name = "bed"
+            let floorGeo = SCNBox(width: 1.9, height: 0.12, length: 1.9, chamferRadius: 0)
+            floorGeo.materials = [bedMat]
+            let floorNode = SCNNode(geometry: floorGeo)
+            floorNode.position = SCNVector3(0, 0.72, -1.35)
+            bed.addChildNode(floorNode)
+            for x in [Float(-0.95), Float(0.95)] {
+                let wallGeo = SCNBox(width: 0.1, height: 0.5, length: 1.9, chamferRadius: 0)
+                wallGeo.materials = [bedMat]
+                let wall = SCNNode(geometry: wallGeo)
+                wall.position = SCNVector3(x, 0.98, -1.35)
+                bed.addChildNode(wall)
+            }
+            let tailGeo = SCNBox(width: 1.9, height: 0.5, length: 0.1, chamferRadius: 0)
+            tailGeo.materials = [bedMat]
+            let tail = SCNNode(geometry: tailGeo)
+            tail.position = SCNVector3(0, 0.98, -2.28)
+            bed.addChildNode(tail)
+            car.addChildNode(bed)
         }
         return car
     }

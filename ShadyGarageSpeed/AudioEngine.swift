@@ -14,6 +14,10 @@ final class AudioEngine: ObservableObject {
     private var oneShotIndex = 0
     private let nosPlayer = AVAudioPlayerNode()
     private let enginePlayer = AVAudioPlayerNode()
+    private let musicPlayer = AVAudioPlayerNode()
+    /// Bus split (web #37): SFX voices → sfxBus, music → musicBus; both → mainMixer.
+    private let sfxBus = AVAudioMixerNode()
+    private let musicBus = AVAudioMixerNode()
     private let lock = NSRecursiveLock() // sfx fire from both main and render threads
     private var started = false          // engine ran at least once (gates auto-resume)
     private var interrupted = false      // inside an AVAudioSession interruption
@@ -28,6 +32,26 @@ final class AudioEngine: ObservableObject {
         }
     }
 
+    /// Music volume (persisted; web default 0.5) — live slider target.
+    @Published var musicVol: Float = UserDefaults.standard.object(forKey: "sgs_musicVol") as? Float ?? 0.5 {
+        didSet {
+            UserDefaults.standard.set(musicVol, forKey: "sgs_musicVol")
+            lock.lock()
+            musicBus.volume = musicVol
+            lock.unlock()
+        }
+    }
+
+    /// SFX volume (persisted; web default 1.0) — live slider target.
+    @Published var sfxVol: Float = UserDefaults.standard.object(forKey: "sgs_sfxVol") as? Float ?? 1.0 {
+        didSet {
+            UserDefaults.standard.set(sfxVol, forKey: "sgs_sfxVol")
+            lock.lock()
+            sfxBus.volume = sfxVol
+            lock.unlock()
+        }
+    }
+
     private let sampleRate: Double = 44100
     private var buffers: [String: AVAudioPCMBuffer] = [:]
     private var beepCache: [Int: AVAudioPCMBuffer] = [:]
@@ -36,19 +60,44 @@ final class AudioEngine: ObservableObject {
     private var nosFade: AVAudioPCMBuffer?
     private var engineLoop: AVAudioPCMBuffer?
 
+    // MARK: music (garage radio + race loop; web SONGS note data)
+
+    private struct Chord { let root: Double; let tones: [Double] }
+    private static let chords: [String: Chord] = [
+        "Am": Chord(root: 110.00, tones: [220.00, 261.63, 329.63]),
+        "F":  Chord(root: 87.31,  tones: [174.61, 220.00, 261.63]),
+        "C":  Chord(root: 130.81, tones: [261.63, 329.63, 392.00]),
+        "G":  Chord(root: 98.00,  tones: [196.00, 246.94, 293.66]),
+    ]
+    private struct SongNote { var freq: Double; var dur: Double; var wave: Wave; var vol: Double }
+    private var songSteps: [String: [AVAudioPCMBuffer]] = [:]
+    private var songStepDur: [String: Double] = ["garage": 60.0 / 72 / 2, "race": 60.0 / 128 / 2]
+    private var musSong: String? = nil
+    private var musStep = 0
+    private var musicGen = 0
+    private var duckUntil = Date.distantPast
+
     private init() {
         // mono connection format — buffers are mono; the mixer upmixes.
         let mono = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
+        engine.attach(sfxBus)
+        engine.attach(musicBus)
+        engine.connect(sfxBus, to: engine.mainMixerNode, format: nil)
+        engine.connect(musicBus, to: engine.mainMixerNode, format: nil)
         for _ in 0..<6 {
             let p = AVAudioPlayerNode()
             engine.attach(p)
-            engine.connect(p, to: engine.mainMixerNode, format: mono)
+            engine.connect(p, to: sfxBus, format: mono)
             oneShots.append(p)
         }
         engine.attach(nosPlayer)
-        engine.connect(nosPlayer, to: engine.mainMixerNode, format: mono)
+        engine.connect(nosPlayer, to: sfxBus, format: mono)
         engine.attach(enginePlayer)
-        engine.connect(enginePlayer, to: engine.mainMixerNode, format: mono)
+        engine.connect(enginePlayer, to: sfxBus, format: mono)
+        engine.attach(musicPlayer)
+        engine.connect(musicPlayer, to: musicBus, format: mono)
+        sfxBus.volume = sfxVol
+        musicBus.volume = musicVol
         engine.mainMixerNode.outputVolume = muted ? 0 : 1
         buildBuffers()
         installObservers()
@@ -89,6 +138,20 @@ final class AudioEngine: ObservableObject {
         for p in oneShots where !p.isPlaying { p.play() }
         if nosOn { startNosLocked() }
         if engineOn { startEngineLocked() }
+        if musSong != nil { reseedMusicLocked() } // scheduled steps don't survive a restart
+    }
+
+    /// Dip the music bus −6dB under a one-shot SFX; slow release (web duck()).
+    private func duckMusic(_ hold: Double) {
+        guard musSong != nil else { return }
+        duckUntil = Date().addingTimeInterval(hold + 0.25)
+        musicBus.volume = musicVol * 0.5
+        DispatchQueue.main.asyncAfter(deadline: .now() + hold + 0.25) { [weak self] in
+            guard let self, Date() >= self.duckUntil else { return }
+            self.lock.lock()
+            self.musicBus.volume = self.musicVol
+            self.lock.unlock()
+        }
     }
 
     /// Observe interruptions (phone call, Siri, alarm), route changes and engine
@@ -138,7 +201,7 @@ final class AudioEngine: ObservableObject {
 
     // MARK: synth
 
-    private enum Wave { case sine, square, saw, triangle }
+    private enum Wave { case sine, square, saw, triangle, noise }
 
     private func waveSample(_ w: Wave, _ phase: Double) -> Float {
         let p = phase - floor(phase)
@@ -147,6 +210,7 @@ final class AudioEngine: ObservableObject {
         case .square:   return p < 0.5 ? 1 : -1
         case .saw:      return Float(2 * p - 1)
         case .triangle: return Float(2 * abs(2 * p - 1) - 1)
+        case .noise:    return Float.random(in: -1...1)
         }
     }
 
@@ -255,6 +319,7 @@ final class AudioEngine: ObservableObject {
         lock.lock()
         defer { lock.unlock() }
         guard ensureRunningLocked() else { return }
+        duckMusic(0.25)
         oneShotIndex = (oneShotIndex + 1) % oneShots.count
         let p = oneShots[oneShotIndex]
         p.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
@@ -338,5 +403,123 @@ final class AudioEngine: ObservableObject {
         enginePlayer.stop()
         enginePlayer.scheduleBuffer(loop, at: nil, options: .loops, completionHandler: nil)
         enginePlayer.play()
+    }
+
+    // MARK: music scheduler (data-driven 8th-note grid, 3 steps queued ahead)
+
+    /// Build every step of a song once (64 garage steps / 32 race steps).
+    private func songBuffers(for name: String) -> [AVAudioPCMBuffer]? {
+        if let cached = songSteps[name] { return cached }
+        guard let stepDur = songStepDur[name] else { return nil }
+        let count = name == "garage" ? 64 : 32
+        var out: [AVAudioPCMBuffer] = []
+        out.reserveCapacity(count)
+        for step in 0..<count {
+            guard let buf = renderStep(name, step: step, stepDur: stepDur) else { return nil }
+            out.append(buf)
+        }
+        songSteps[name] = out
+        return out
+    }
+
+    /// One 8th-note step mixed to a buffer — note data ported from web SONGS.
+    private func renderStep(_ song: String, step: Int, stepDur: Double) -> AVAudioPCMBuffer? {
+        var notes: [SongNote] = []
+        if song == "garage" {
+            // 72bpm Am–F–C–G ×2, 8 bars of 8 steps (web SONGS.garage)
+            let bars = ["Am", "F", "C", "G", "Am", "F", "C", "G"]
+            let bar = Self.chords[bars[(step >> 3) % 8]]!
+            let s = step & 7
+            if s == 0 || s == 4 { notes.append(SongNote(freq: bar.root, dur: 0.38, wave: .triangle, vol: 0.055)) }
+            if s == 6 { notes.append(SongNote(freq: bar.root * 1.5, dur: 0.2, wave: .triangle, vol: 0.04)) }
+            if s == 1 || s == 3 || s == 6 { // sparse, swaying lead
+                let pickIdx = ((step >> 3) + (s == 3 ? 1 : s == 6 ? 2 : 0)) % 3
+                notes.append(SongNote(freq: bar.tones[pickIdx], dur: 0.32, wave: .square, vol: 0.026))
+            }
+        } else {
+            // 128bpm Am–Am–F–G, 4 bars of 8 steps (web SONGS.race)
+            let bars = ["Am", "Am", "F", "G"]
+            let bar = Self.chords[bars[(step >> 3) % 4]]!
+            let s = step & 7
+            notes.append(SongNote(freq: bar.root / 2, dur: 0.12, wave: .square, vol: s % 4 == 0 ? 0.06 : 0.045)) // 8th pulse
+            if s == 2 || s == 6 { notes.append(SongNote(freq: 0, dur: 0.03, wave: .noise, vol: 0.016)) }         // offbeat hats
+            let arp = [0, 1, 2, 1][(step >> 1) % 4]
+            if (s & 1) == 0 { notes.append(SongNote(freq: bar.tones[arp] * 2, dur: 0.14, wave: .saw, vol: 0.02)) }
+        }
+        let frames = AVAudioFrameCount(max(1, Int(stepDur * sampleRate)))
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return nil }
+        buffer.frameLength = frames
+        let data = buffer.floatChannelData![0]
+        for n in notes {
+            let count = min(Int(n.dur * sampleRate), Int(frames))
+            var phase = 0.0
+            for i in 0..<count {
+                let t = Double(i) / sampleRate
+                phase += n.freq / sampleRate
+                let g = n.vol * pow(0.0001 / n.vol, t / n.dur) // same decay envelope as SFX
+                data[i] += Float(g) * waveSample(n.wave, phase)
+            }
+        }
+        return buffer
+    }
+
+    /// Start (or switch) a music loop: "garage" (menu/garage/build) or "race" (from GO).
+    func musicStart(_ name: String) {
+        lock.lock()
+        guard musSong != name else { lock.unlock(); return }
+        // stop OUTSIDE the lock: the audio worker may be inside a step-completion
+        // handler waiting for it — stop() under lock is an AB-BA deadlock.
+        musSong = nil
+        musicGen += 1
+        lock.unlock()
+        musicPlayer.stop()
+        lock.lock()
+        defer { lock.unlock() }
+        guard ensureRunningLocked(), songBuffers(for: name) != nil else { return }
+        musSong = name
+        reseedMusicLocked()
+    }
+
+    func musicStop() {
+        lock.lock()
+        musSong = nil
+        musicGen += 1
+        lock.unlock()
+        musicPlayer.stop() // see musicStart: never under the lock
+    }
+
+    private func stopMusicLocked() {
+        musSong = nil
+        musicGen += 1
+    }
+
+    /// (Re)start the step queue at step 0 with 3 buffers in flight.
+    private func reseedMusicLocked() {
+        guard let name = musSong, engine.isRunning else { return }
+        musicGen += 1
+        musStep = 0
+        musicBus.volume = musicVol
+        // stop outside the lock (audio worker may be in a completion waiting for it)
+        lock.unlock()
+        musicPlayer.stop()
+        lock.lock()
+        for _ in 0..<3 { scheduleStepLocked() }
+        musicPlayer.play()
+    }
+
+    private func scheduleStepLocked() {
+        guard let name = musSong, let steps = songSteps[name], !steps.isEmpty else { return }
+        let gen = musicGen
+        let buf = steps[musStep % steps.count]
+        musStep += 1
+        musicPlayer.scheduleBuffer(buf, at: nil, options: []) { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            if self.musicGen == gen, self.musSong != nil {
+                self.scheduleStepLocked()
+            }
+            self.lock.unlock()
+        }
     }
 }

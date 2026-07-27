@@ -149,6 +149,8 @@ final class ShadyGarageSpeedUITests: XCTestCase {
 
         // race touch controls are labeled buttons
         app.buttons["nav-race"].tap()
+        XCTAssertTrue(app.buttons["track-row-0"].waitForExistence(timeout: 5))
+        app.buttons["track-row-0"].tap()
         XCTAssertTrue(app.buttons["tc-gas"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["tc-gas"].label, "Gas")
         XCTAssertEqual(app.buttons["tc-nos"].label, "NOS boost")
@@ -267,12 +269,15 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         shot("heat75_single_car")
     }
 
-    /// race: hold GAS, speed climbs, forfeit ✕ returns to the garage.
+    /// race: track sheet first, then hold GAS, speed climbs, forfeit ✕ returns to the garage.
     func testRace() throws {
         launch(["-reset", "-phase", "garage"])
         let race = app.buttons["nav-race"]
         XCTAssertTrue(race.waitForExistence(timeout: 8))
         race.tap()
+        XCTAssertTrue(app.buttons["track-row-0"].waitForExistence(timeout: 5),
+                      "Race must open the track-select sheet first")
+        app.buttons["track-row-0"].tap()
         sleep(4) // 3s countdown + GO (~1s into the race now)
         let gas = app.buttons["tc-gas"]
         XCTAssertTrue(gas.waitForExistence(timeout: 3))
@@ -331,6 +336,69 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertLessThan(timerAfter - timerBefore, 5000,
                           "timer jumped unreasonably (\(timerBefore) → \(timerAfter))")
         shot("race_after_background")
+    }
+
+    /// track select: Race opens the sheet; picking Figure-8 Ridge starts a race there.
+    func testTrackSelectFlow() throws {
+        launch(["-reset", "-phase", "garage"])
+        let race = app.buttons["nav-race"]
+        XCTAssertTrue(race.waitForExistence(timeout: 8))
+        race.tap()
+        let ridge = app.buttons["track-row-1"]
+        XCTAssertTrue(ridge.waitForExistence(timeout: 5), "track sheet should offer Figure-8 Ridge")
+        XCTAssertTrue(app.buttons["track-row-0"].exists, "track sheet should offer Meadow Loop")
+        ridge.tap()
+        XCTAssertTrue(app.staticTexts["race-timer"].waitForExistence(timeout: 8),
+                      "race should start on the Ridge")
+        shot("track_ridge")
+        app.buttons["forfeit"].tap()
+        XCTAssertTrue(app.buttons["nav-race"].waitForExistence(timeout: 5))
+    }
+
+    /// difficulty: set Cutthroat in Settings, relaunch — the menu footer shows it.
+    /// (Restores Normal afterwards so the rest of the suite runs stock.)
+    func testDifficultyPersist() throws {
+        launch(["-reset", "-phase", "garage"])
+        let gear = app.buttons["nav-settings"]
+        XCTAssertTrue(gear.waitForExistence(timeout: 8))
+        gear.tap()
+        let cut = app.buttons["set-diff-cutthroat"]
+        XCTAssertTrue(cut.waitForExistence(timeout: 5))
+        cut.tap()
+        app.buttons["settings-close"].tap()
+        app.terminate()
+
+        launch([]) // menu, NO -reset — settings persist outside the save blob
+        let footer = app.staticTexts["menu-footer"]
+        XCTAssertTrue(footer.waitForExistence(timeout: 8))
+        XCTAssertTrue(footer.label.contains("Cutthroat"),
+                      "difficulty should persist across relaunch, got \(footer.label)")
+
+        // leave no trace for the rest of the suite
+        launch(["-phase", "garage"])
+        XCTAssertTrue(app.buttons["nav-settings"].waitForExistence(timeout: 8))
+        app.buttons["nav-settings"].tap()
+        XCTAssertTrue(app.buttons["set-diff-normal"].waitForExistence(timeout: 5))
+        app.buttons["set-diff-normal"].tap()
+    }
+
+    /// first-run tutorial: 3 coach marks appear on the first garage visit,
+    /// advance with Next, and never come back after being seen.
+    func testTutorialAppearsOnce() throws {
+        launch(["-reset", "-phase", "garage"])
+        let next = app.buttons["tutorial-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10), "tutorial should show on first visit")
+        shot("tutorial_first")
+        next.tap() // mark 2
+        next.tap() // mark 3
+        next.tap() // Got it
+        XCTAssertTrue(next.waitForNonExistence(timeout: 5), "tutorial should dismiss")
+        app.terminate()
+
+        launch(["-phase", "garage"]) // NO -reset
+        sleep(2)
+        XCTAssertFalse(app.buttons["tutorial-next"].exists,
+                       "tutorial must not reappear after being seen")
     }
 
     /// suspicion is per-customer: it must NOT survive an app relaunch onto a fresh
