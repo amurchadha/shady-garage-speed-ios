@@ -197,6 +197,24 @@ final class RaceScene: SceneController {
     private var ghost: SCNNode?
     private var ghostTime: Double = 0
 
+    // juice (web #21–#27): chase-cam yaw lag, impact shake, slow-mo finish,
+    // countdown beauty-shot pan, results photo-mode orbit, legend confetti
+    private var camYawLag: Float = 0
+    private var shakeImp: Float = 0
+    private var shakeT: Float = 0
+    private var slowmoT: Double = 0
+    private var panning = false
+    private var panFrom = SCNVector3(0, 0, 0)
+    /// Results photo mode: slow orbit around the parked car (driven by RootView).
+    var photoMode = false {
+        didSet {
+            if photoMode {
+                orbitA = atan2(cameraNode.position.x - pos.x, cameraNode.position.z - pos.y)
+            }
+        }
+    }
+    private var orbitA: Float = 0
+
     // body roll/pitch (mirrors web: roll into steering, pitch under accel/brake)
     private var bodyRoll: Float = 0
     private var bodyPitch: Float = 0
@@ -219,6 +237,34 @@ final class RaceScene: SceneController {
     private var smokeT: Float = 0
     private var dustT: Float = 0
     private enum FXKind { case smoke, dust, spark, nosPuff }
+
+    // #22 speed lines (camera-space streaks, recycled, cap 24)
+    private struct Streak {
+        var node: SCNNode
+        var age: Float = 0, life: Float = 0.25, x: Float = 0, y: Float = 0
+        var dx: Float = 1, dy: Float = 0, spd: Float = 18, len: Float = 1.5
+        var active = false
+    }
+    private var streaks: [Streak] = []
+    private var streakCursor = 0
+    private var streakAcc: Float = 0
+
+    // #26 legend confetti (recycled quads, gravity + flutter, cap 120)
+    private struct Confetto {
+        var node: SCNNode
+        var vel = SCNVector3(0, 0, 0)
+        var w = SCNVector3(0, 0, 0)
+        var age: Float = 0, life: Float = 3.6
+        var phase: Float = 0
+        var active = false
+    }
+    private var confetti: [Confetto] = []
+    private var confCursor = 0
+    private static let confettiColors: [Int] = [0xff5d3b, 0xffd23f, 0x4ade80, 0x38bdf8, 0xf472b6, 0xffffff]
+
+    // skid sound (#33 ∝ slip) + off-track rumble (#35 ∝ speed)
+    private var skidSoundOn = false
+    private var rumbleSoundOn = false
 
     // skid marks: ring buffer of dark translucent quads, fade over ~8s
     private var skids: [(node: SCNNode, age: Float, active: Bool)] = []
@@ -619,6 +665,41 @@ final class RaceScene: SceneController {
             scene.rootNode.addChildNode(n)
             skids.append((node: n, age: 0, active: false))
         }
+
+        // #22 speed lines: camera-space streak quads (additive, no depth test)
+        let streakGroup = SCNNode()
+        streakGroup.position = SCNVector3(0, 0, -10)
+        cameraNode.addChildNode(streakGroup)
+        for _ in 0..<24 {
+            let geo = SCNBox(width: 1, height: 0.05, length: 0.01, chamferRadius: 0)
+            let m = SCNMaterial()
+            m.lightingModel = .constant
+            m.diffuse.contents = UIColor.white
+            m.blendMode = .add
+            m.writesToDepthBuffer = false
+            m.readsFromDepthBuffer = false
+            m.transparency = 0.55
+            geo.materials = [m]
+            let n = SCNNode(geometry: geo)
+            n.isHidden = true
+            streakGroup.addChildNode(n)
+            streaks.append(Streak(node: n))
+        }
+
+        // #26 legend confetti quads (gravity + flutter)
+        for (i, hex) in (0..<120).map({ ($0, Self.confettiColors[$0 % Self.confettiColors.count]) }) {
+            let geo = SCNPlane(width: 0.18, height: 0.26)
+            let m = SCNMaterial()
+            m.lightingModel = .constant
+            m.diffuse.contents = UIColor(rgb: hex)
+            m.isDoubleSided = true
+            m.transparency = 0.95
+            geo.materials = [m]
+            let n = SCNNode(geometry: geo)
+            n.isHidden = true
+            scene.rootNode.addChildNode(n)
+            confetti.append(Confetto(node: n))
+        }
     }
 
     // MARK: - particle juice emit/update (allocation-free)
@@ -667,6 +748,30 @@ final class RaceScene: SceneController {
             e.node.scale = SCNVector3(e.baseScale, e.baseScale, e.baseScale)
             e.node.isHidden = false
             fx[i] = e
+        }
+    }
+
+    /// #26 legend confetti burst over the results backdrop (~4s; no-op on reduced motion).
+    func confettiBurst(_ count: Int = 120) {
+        guard !A11y.reduceMotion else { return }
+        for _ in 0..<min(count, confetti.count) {
+            let i = confCursor
+            confCursor = (confCursor + 1) % confetti.count
+            var e = confetti[i]
+            e.active = true
+            e.age = 0
+            e.life = 3.2 + Float.random(in: 0..<0.8)
+            e.node.position = SCNVector3(pos.x + Float.random(in: -0.8...0.8),
+                                         1.5 + Float.random(in: 0..<0.8),
+                                         pos.y + Float.random(in: -0.8...0.8))
+            e.vel = SCNVector3(Float.random(in: -4...4),
+                               5 + Float.random(in: 0..<4.5),
+                               Float.random(in: -4...4))
+            e.w = SCNVector3(Float.random(in: -5...5), Float.random(in: -5...5), Float.random(in: -5...5))
+            e.phase = Float.random(in: 0..<(2 * .pi))
+            e.node.opacity = 0.95
+            e.node.isHidden = false
+            confetti[i] = e
         }
     }
 
@@ -741,6 +846,13 @@ final class RaceScene: SceneController {
     private func desiredCamPos() -> SCNVector3 {
         let fx = sin(yaw), fz = cos(yaw)
         return SCNVector3(pos.x - fx * 10, 4.2, pos.y - fz * 10)
+    }
+
+    private func shortAngle(_ a: Float) -> Float {
+        var a = a
+        while a > Float.pi { a -= Float.pi * 2 }
+        while a < -Float.pi { a += Float.pi * 2 }
+        return a
     }
 
     func startRun() {
@@ -819,6 +931,19 @@ final class RaceScene: SceneController {
         raceT = 0; finishT = 0; finishFired = false; finishData = nil
         bodyRoll = 0; bodyPitch = 0; prevSpeed = 0
         nosPuffT = 0; smokeT = 0; dustT = 0; skidT = 0
+        slowmoT = 0; shakeImp = 0; shakeT = 0
+        camYawLag = yaw
+        photoMode = false
+        if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
+        if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
+        // #27 countdown beauty shot swoops into chase over the 3s count (skip on reduced motion)
+        panning = !A11y.reduceMotion
+        if panning {
+            let fx = sin(yaw), fz = cos(yaw)
+            panFrom = SCNVector3(pos.x + fx * 11 + fz * 6, 6.2, pos.y + fz * 11 - fx * 6)
+        }
+        // #38 rain patter for the whole race (stopped on exit)
+        sfx.rain(raining)
         // clear last run's particles + tire marks
         for i in fx.indices { fx[i].active = false; fx[i].node.isHidden = true }
         for i in skids.indices { skids[i].active = false; skids[i].node.isHidden = true }
@@ -860,6 +985,9 @@ final class RaceScene: SceneController {
         Haptics.nosRumble(false)
         sfx.engineSound(false)
         sfx.musicStop()
+        sfx.rain(false)
+        if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
+        if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         DispatchQueue.main.async { self.countdownText = nil }
         toasts.push("Race forfeited", .warn)
         onExit?()
@@ -876,6 +1004,9 @@ final class RaceScene: SceneController {
         Haptics.nosRumble(false)
         sfx.engineSound(false)
         sfx.musicStop()
+        sfx.rain(false)
+        if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
+        if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         DispatchQueue.main.async { self.countdownText = nil }
     }
 
@@ -917,12 +1048,16 @@ final class RaceScene: SceneController {
         finishT = 0
         finishFired = false
         boosting = false
+        if !A11y.reduceMotion { slowmoT = 0.9 } // #24 time dilation over the line
         ghost?.removeFromParentNode() // ghost stops at the line
         ghost = nil
         sfx.nos(false)
         Haptics.nosRumble(false)
         sfx.engineSound(false)
         sfx.musicStop() // race loop ends at the line
+        sfx.rain(false)
+        if skidSoundOn { skidSoundOn = false; sfx.skid(false) }
+        if rumbleSoundOn { rumbleSoundOn = false; sfx.rumble(false) }
         for f in flames { f.isHidden = true }
         let lap = raceT
         // per-track best laps (bestLaps keyed by track id)
@@ -999,6 +1134,12 @@ final class RaceScene: SceneController {
     // MARK: - frame update (render thread)
 
     override func update(dt: TimeInterval) {
+        var dt = dt
+        // #24 brief time dilation over the line (real seconds left; snap back after)
+        if slowmoT > 0 {
+            slowmoT -= dt
+            dt *= 0.45
+        }
         stateLock.lock()
         defer { stateLock.unlock() }
         // clouds drift
@@ -1172,6 +1313,8 @@ final class RaceScene: SceneController {
                 if wallCooldown <= 0 {
                     let impact = min(1, abs(speed) / maxSpd)
                     Haptics.barrierThud(impact) // thud scaled by impact
+                    sfx.thud(impact)            // #34 audio thud, impact-scaled, ≤2/150ms
+                    shakeImp = impact           // #23 impact-scaled camera shake
                     emitFX(.spark, at: SCNVector3(pos.x, 0.6, pos.y),
                            count: 3 + Int(6 * impact)) // sparks scaled by impact
                     speed *= 0.5
@@ -1259,6 +1402,24 @@ final class RaceScene: SceneController {
                     laySkid()
                 }
             }
+
+            // #33 skid sound ∝ slip (same slip condition as skid marks)
+            let slipping = hardSteer || hardBrake
+            if slipping && !offTrack {
+                if !skidSoundOn { skidSoundOn = true; sfx.skid(true) }
+                sfx.skidLevel(min(1, abs(speed) / maxSpd) * (hardSteer ? 1 : 0.6))
+            } else if skidSoundOn {
+                skidSoundOn = false
+                sfx.skid(false)
+            }
+            // #35 off-track rumble ∝ speed
+            if offTrack && abs(speed) > 1 {
+                if !rumbleSoundOn { rumbleSoundOn = true; sfx.rumble(true) }
+                sfx.rumbleLevel(min(1, abs(speed) / maxSpd))
+            } else if rumbleSoundOn {
+                rumbleSoundOn = false
+                sfx.rumble(false)
+            }
         }
 
         if phase == .finished, let car = carMesh {
@@ -1282,27 +1443,131 @@ final class RaceScene: SceneController {
             }
         }
 
-        // chase camera
+        // chase camera (or results photo-mode orbit)
         if carMesh != nil {
-            let k = 1 - exp(-6 * dt)
-            let target = desiredCamPos()
-            camPos.x += (target.x - camPos.x) * Float(k)
-            camPos.y += (target.y - camPos.y) * Float(k)
-            camPos.z += (target.z - camPos.z) * Float(k)
-            cameraNode.position = camPos
-            if offTrack && phase == .racing {
-                cameraNode.position.x += Float((Double.random(in: 0..<1) - 0.5) * 0.16)
-                cameraNode.position.y += Float((Double.random(in: 0..<1) - 0.5) * 0.1)
-                cameraNode.position.z += Float((Double.random(in: 0..<1) - 0.5) * 0.16)
+            if photoMode {
+                // #25 photo mode: slow orbit around the parked car (static on reduced motion)
+                if !A11y.reduceMotion { orbitA += Float(dt) * 0.35 }
+                cameraNode.position = SCNVector3(pos.x + sin(orbitA) * 9, 3.2, pos.y + cos(orbitA) * 9)
+                cameraNode.look(at: SCNVector3(pos.x, 1, pos.y))
+                camPos = cameraNode.position // glide back to chase on exit
+            } else if panning && phase == .count {
+                // #27 countdown swoop: beauty shot → chase position over the 3s count
+                let t = min(1, countT / 3)
+                let s = t * t * (3 - 2 * t)
+                let target = desiredCamPos()
+                camPos.x = panFrom.x + (target.x - panFrom.x) * Float(s)
+                camPos.y = panFrom.y + (target.y - panFrom.y) * Float(s)
+                camPos.z = panFrom.z + (target.z - panFrom.z) * Float(s)
+                cameraNode.position = camPos
+                cameraNode.look(at: SCNVector3(pos.x, 1.2, pos.y))
+                camYawLag = yaw
+            } else {
+                let k = 1 - exp(-6 * dt)
+                // #21 chase-cam yaw lags the heading (~4/s) so steering shows in frame
+                if !A11y.reduceMotion {
+                    camYawLag += shortAngle(yaw - camYawLag) * Float(1 - exp(-4 * dt))
+                } else {
+                    camYawLag = yaw
+                }
+                let cfx = sin(camYawLag), cfz = cos(camYawLag)
+                let target = SCNVector3(pos.x - cfx * 10, 4.2, pos.y - cfz * 10)
+                camPos.x += (target.x - camPos.x) * Float(k)
+                camPos.y += (target.y - camPos.y) * Float(k)
+                camPos.z += (target.z - camPos.z) * Float(k)
+                cameraNode.position = camPos
+                if !A11y.reduceMotion {
+                    if offTrack && phase == .racing {
+                        // smooth periodic rumble — frame-rate independent
+                        cameraNode.position.x += sin(Float(raceT) * 13.1) * 0.08 + sin(Float(raceT) * 7.3) * 0.05
+                        cameraNode.position.y += sin(Float(raceT) * 17.7) * 0.06
+                        cameraNode.position.z += cos(Float(raceT) * 11.3) * 0.08
+                    }
+                    // #23 impact shake: barrier impulse ∝ impact speed, ~0.3s decay
+                    if shakeImp > 0.001 {
+                        shakeT += Float(dt)
+                        cameraNode.position.x += (sin(shakeT * 39.1) + sin(shakeT * 27.3) * 0.6) * 0.22 * shakeImp
+                        cameraNode.position.y += sin(shakeT * 45.7) * 0.16 * shakeImp
+                        cameraNode.position.z += cos(shakeT * 33.9) * 0.22 * shakeImp
+                        shakeImp *= Float(exp(-dt / 0.3))
+                        if shakeImp <= 0.001 { shakeImp = 0 }
+                    }
+                }
+                cameraNode.look(at: SCNVector3(pos.x + cfx * 6, 1.5, pos.y + cfz * 6))
             }
-            let fx = sin(yaw), fz = cos(yaw)
-            cameraNode.look(at: SCNVector3(pos.x + fx * 6, 1.5, pos.y + fz * 6))
-            let targetFov = 62 + 16 * min(1, CGFloat(abs(speed)) / CGFloat(maxSpd)) + (boosting ? 8 : 0)
+            // #24 slow-mo FOV pulse rides the usual speed FOV
+            let targetFov = 62 + 16 * min(1, CGFloat(abs(speed)) / CGFloat(maxSpd)) + (boosting ? 8 : 0) + (slowmoT > 0 ? 9 : 0)
             camFov += (targetFov - camFov) * CGFloat(1 - exp(-4 * dt))
             cameraNode.camera?.fieldOfView = camFov
             // shadow light follows the car
             dirLightNode.position = SCNVector3(pos.x + sunOffset.x, sunOffset.y, pos.y + sunOffset.z)
             sunTarget.position = SCNVector3(pos.x, 0, pos.y)
+        }
+
+        // #22 speed lines above 75% max speed (density ∝ speed)
+        let spdK = maxSpd > 0 ? abs(speed) / maxSpd : 0
+        if phase == .racing, !A11y.reduceMotion, spdK > 0.75 {
+            streakAcc += Float(dt) * 36 * ((spdK - 0.75) / 0.25)
+            let halfH = tan(Float(camFov) * .pi / 360) * 10
+            let aspect = Float((scnView?.bounds.width ?? 402) / max(1, scnView?.bounds.height ?? 874))
+            let halfW = halfH * aspect
+            while streakAcc > 1 {
+                streakAcc -= 1
+                let i = streakCursor
+                streakCursor = (streakCursor + 1) % streaks.count
+                var s = streaks[i]
+                let a = Float.random(in: 0..<(2 * .pi)), r = 0.5 + Float.random(in: 0..<0.25)
+                s.active = true
+                s.age = 0
+                s.life = 0.22 + Float.random(in: 0..<0.08)
+                s.x = cos(a) * r * halfW
+                s.y = sin(a) * r * halfH
+                s.dx = cos(a)
+                s.dy = sin(a)
+                s.spd = 16 + spdK * 10
+                s.len = 1.1 + spdK * 1.2
+                streaks[i] = s
+            }
+        } else {
+            streakAcc = 0
+        }
+        for i in streaks.indices where streaks[i].active {
+            var s = streaks[i]
+            s.age += Float(dt)
+            if s.age >= s.life {
+                s.active = false
+                s.node.isHidden = true
+            } else {
+                let k = s.age / s.life
+                s.x += s.dx * s.spd * Float(dt)
+                s.y += s.dy * s.spd * Float(dt)
+                s.node.position = SCNVector3(s.x, s.y, 0)
+                s.node.eulerAngles = SCNVector3(0, 0, atan2(s.dy, s.dx))
+                s.node.scale = SCNVector3(s.len * (1 + k * 1.5), 1 - k, 1)
+                s.node.opacity = CGFloat(0.55 * (1 - k))
+                s.node.isHidden = false
+            }
+            streaks[i] = s
+        }
+
+        // #26 legend confetti (gravity + flutter)
+        for i in confetti.indices where confetti[i].active {
+            var e = confetti[i]
+            e.age += Float(dt)
+            if e.age >= e.life {
+                e.active = false
+                e.node.isHidden = true
+            } else {
+                e.vel.y -= 5 * Float(dt) // light gravity
+                e.node.position.x += (e.vel.x + sin(e.age * 6 + e.phase) * 0.7) * Float(dt)
+                e.node.position.y += e.vel.y * Float(dt)
+                e.node.position.z += (e.vel.z + cos(e.age * 5 + e.phase) * 0.7) * Float(dt)
+                e.node.eulerAngles.x += e.w.x * Float(dt)
+                e.node.eulerAngles.y += e.w.y * Float(dt)
+                e.node.eulerAngles.z += e.w.z * Float(dt)
+                e.node.opacity = CGFloat(0.95 * (1 - pow(e.age / e.life, 2)))
+            }
+            confetti[i] = e
         }
 
         // throttled HUD publish (30 Hz, main thread)

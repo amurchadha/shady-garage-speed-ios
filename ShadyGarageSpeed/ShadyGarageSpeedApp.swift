@@ -51,7 +51,29 @@ struct RootView: View {
             case .race:
                 RaceView(scene: app.raceScene, thermal: app.thermalLimited)
             case .results:
-                ResultsView()
+                if app.showPhotoMode {
+                    // #25 photo mode: scene + orbit cam, UI hidden, tap exits
+                    ZStack {
+                        SceneKitView(controller: app.raceScene, fps: 30, thermal: app.thermalLimited)
+                            .ignoresSafeArea()
+                            .accessibilityHidden(true)
+                        Text("Tap anywhere to exit photo mode")
+                            .font(sgsFont(13, .semibold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(color: .black.opacity(0.6), radius: 4, y: 2)
+                            .padding(10)
+                            .background(Color.black.opacity(0.4))
+                            .clipShape(Capsule())
+                            .padding(.bottom, 28)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                            .accessibilityIdentifier("photo-exit-hint")
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { app.exitPhotoMode() }
+                    .accessibilityIdentifier("photo-mode")
+                } else {
+                    ResultsView()
+                }
             }
             VStack {
                 Spacer()

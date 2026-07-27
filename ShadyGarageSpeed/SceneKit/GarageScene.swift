@@ -31,6 +31,8 @@ final class GarageScene: SceneController {
     private let stateLock = NSRecursiveLock()
     /// Debug `-cop`: every heat ≥70 arrival triggers a cop visit (deterministic tests).
     var forceCop = false
+    /// Debug `-entrance normal|reverse|swing`: force the #28 entrance roll.
+    var forceEntrance: String? = nil
     /// Debug `-debughud`: publish the live count of customer-car nodes in-scene
     /// (regression hook for the double-enterPlay ghost car).
     var debugHUD = false
@@ -50,6 +52,15 @@ final class GarageScene: SceneController {
     private var stolenThisJob: [String] = []
     private var customerWheels: [SCNNode] = []
     private var wheelSpin: Float = 0
+    private var flinchT: Double = 0 // #29 steal-peek flinch
+
+    /// #29 suspicious glance-lean while a Steal button is pressed-and-held.
+    func ownerFlinch() {
+        guard !A11y.reduceMotion, owner != nil, flinchT <= 0 else { return }
+        stateLock.lock()
+        flinchT = 0.3
+        stateLock.unlock()
+    }
 
     // MARK: owner on-scene (Feature C)
     private var owner: SCNNode?
@@ -267,6 +278,39 @@ final class GarageScene: SceneController {
         return a
     }
 
+    /// #28 entrance variety: normal 50% · reverse-park 25% · fast-and-swing 25%.
+    private func entranceSteps() -> [GStep] {
+        let roll: Double
+        switch forceEntrance { // debug -entrance: deterministic roll (screenshots)
+        case "normal":  roll = 0.1
+        case "reverse": roll = 0.6
+        case "swing":   roll = 0.9
+        default:        roll = Double.random(in: 0..<1)
+        }
+        if roll < 0.5 {
+            return [GStep(to: SCNVector3(1.5, 0, 23.5), yaw: -Float.pi / 2, dur: 1.5),
+                    GStep(to: SCNVector3(0.5, 0, 5), yaw: Float.pi, dur: 1.1),
+                    GStep(to: SCNVector3(0, 0, -4.5), yaw: 0, dur: 1.0)]
+        } else if roll < 0.75 {
+            // pull past the bay nose-first, then reverse in (final yaw flipped π)
+            return [GStep(to: SCNVector3(1.5, 0, 23.5), yaw: -Float.pi / 2, dur: 1.5),
+                    GStep(to: SCNVector3(0, 0, -9.5), yaw: Float.pi, dur: 1.3),
+                    GStep(to: SCNVector3(0, 0, -4.5), yaw: Float.pi, dur: 0.9)]
+        }
+        // fast-and-swing: quicker, slight arc + tire squeak through the swing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { [weak self] in
+            guard let self else { return }
+            self.sfx.skid(true)
+            self.sfx.skidLevel(0.5)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { [weak self] in
+                self?.sfx.skid(false)
+            }
+        }
+        return [GStep(to: SCNVector3(1.5, 0, 23.5), yaw: -Float.pi / 2, dur: 0.9),
+                GStep(to: SCNVector3(3.2, 0, 8), yaw: Float.pi * 0.8, dur: 0.7),
+                GStep(to: SCNVector3(0, 0, -4.5), yaw: 0, dur: 0.6)]
+    }
+
     private func processDrive(_ dt: Double) {
         guard var d = drive else { return }
         guard let s = d.steps.first else {
@@ -404,11 +448,7 @@ final class GarageScene: SceneController {
         nextWatchT = elapsed + Double.random(in: 4...8)
         watchUntilT = 0
         if ownerWatching { DispatchQueue.main.async { self.ownerWatching = false } }
-        drive = Tween(car: car, steps: [
-            GStep(to: SCNVector3(1.5, 0, 23.5), yaw: -Float.pi / 2, dur: 1.5),
-            GStep(to: SCNVector3(0.5, 0, 5), yaw: Float.pi, dur: 1.1),
-            GStep(to: SCNVector3(0, 0, -4.5), yaw: 0, dur: 1.0),
-        ], onDone: { [weak self] in
+        drive = Tween(car: car, steps: entranceSteps(), onDone: { [weak self] in
             guard let self else { return }
             self.inspectStartT = self.elapsed
             let archetype = c.archetype
@@ -492,6 +532,8 @@ final class GarageScene: SceneController {
         guard let line = Self.lines[key]?.randomElement() else { return }
         bubbleUntil = elapsed + dur
         DispatchQueue.main.async { self.bubbleText = line }
+        // #40 mumble-blips: pitched gibberish per archetype (glance uses regular)
+        sfx.mumble(key == "glance" ? "regular" : (customer?.archetype ?? "regular"))
     }
 
     private func publishLugnut() {
@@ -822,8 +864,20 @@ final class GarageScene: SceneController {
         // (frozen under Reduce Motion)
         if let owner, ownerWalk == nil, shakeT <= 0, !A11y.reduceMotion {
             owner.position.y = Float(abs(sin(elapsed * 2 + 0.9)) * 0.05)
-            if let head = owner.childNode(withName: "head", recursively: true) {
-                head.eulerAngles.x = elapsed.truncatingRemainder(dividingBy: 9) < 1.5 ? 0.55 : 0
+            let head = owner.childNode(withName: "head", recursively: true)
+            let phoning = elapsed.truncatingRemainder(dividingBy: 9) < 1.5
+            head?.eulerAngles.x = phoning ? 0.55 : 0
+            // #29 steal-peek flinch: quick lean, composed over the phone tilt
+            if flinchT > 0 {
+                flinchT -= dt
+                let k = sin(Double.pi * max(0, 1 - flinchT / 0.3))
+                if let head { head.eulerAngles.x += Float(k * 0.4) }
+                owner.childNode(withName: "cap", recursively: true)?.eulerAngles.x = head?.eulerAngles.x ?? 0
+                owner.childNode(withName: "torso", recursively: true)?.eulerAngles.x = Float(k * 0.18)
+                if flinchT <= 0 {
+                    owner.childNode(withName: "cap", recursively: true)?.eulerAngles.x = 0
+                    owner.childNode(withName: "torso", recursively: true)?.eulerAngles.x = 0
+                }
             }
         }
 

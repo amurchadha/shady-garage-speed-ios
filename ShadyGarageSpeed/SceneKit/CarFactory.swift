@@ -233,7 +233,8 @@ enum CarFactory {
         let g = SCNNode()
         let c = UIColor(rgb: color)
         g.addChildNode(boxNode(0.4, 0.5, 0.26, UIColor(rgb: 0x2f3640), 0, 0.25, 0))
-        g.addChildNode(boxNode(0.52, 0.55, 0.3, c, 0, 0.78, 0))
+        let torso = boxNode(0.52, 0.55, 0.3, c, 0, 0.78, 0, name: "torso") // leans on flinch
+        g.addChildNode(torso)
         g.addChildNode(boxNode(0.12, 0.45, 0.14, c, -0.33, 0.8, 0))
         g.addChildNode(boxNode(0.12, 0.45, 0.14, c, 0.33, 0.8, 0))
         let head = sphereNode(radius: 0.22, color: UIColor(rgb: 0xf2c9a0), segments: 6)
@@ -243,6 +244,7 @@ enum CarFactory {
         capGeo.radialSegmentCount = 8
         capGeo.materials = [FlatMat.lit(c)]
         let cap = SCNNode(geometry: capGeo)
+        cap.name = "cap" // follows head tilt
         cap.position.y = 1.47
         cap.castsShadow = true
         g.addChildNode(head)

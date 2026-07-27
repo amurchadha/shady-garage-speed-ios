@@ -310,6 +310,13 @@ final class AudioEngine: ObservableObject {
         engineLoop = renderCurve(dur: 0.5,
             freq: { t in 60 + 8 * sin(2 * .pi * 6 * t) },
             gain: { _ in 0.14 })
+
+        // filtered-noise loop sources (played as loops with live gain)
+        buildNoiseBuffer()
+        makeNoiseLoop("skid", kind: "bandpass", freq: 900, q: 1.8, baseGain: 0.12)  // #33 ∝ slip
+        makeNoiseLoop("rumble", kind: "lowpass", freq: 220, q: 0.6, baseGain: 0.14) // #35 ∝ speed
+        makeNoiseLoop("rain", kind: "lowpass", freq: 1400, q: 0.4, baseGain: 0.05)  // #38 patter
+        makeNoiseLoop("shophum", kind: "lowpass", freq: 320, q: 0.5, baseGain: 0.03) // #36 bed
     }
 
     // MARK: playback (mirrors web sfx API) — all fail-silent
@@ -405,6 +412,287 @@ final class AudioEngine: ObservableObject {
         enginePlayer.play()
     }
 
+    // MARK: filtered-noise loops (#33 skid / #35 rumble / #38 rain / #36 hum)
+
+    /// A persistent filtered-noise loop with idempotent start/stop + live gain,
+    /// matching the web's makeNoiseLoop (gain = baseGain × level).
+    private final class NoiseLoop {
+        let player: AVAudioPlayerNode
+        var baseGain: Float
+        var active = false
+        init(_ player: AVAudioPlayerNode, _ baseGain: Float) {
+            self.player = player
+            self.baseGain = baseGain
+        }
+    }
+    private var noiseBuffer: AVAudioPCMBuffer?
+    private var noiseLoops: [String: NoiseLoop] = [:]
+
+    private func buildNoiseBuffer() {
+        let n = Int(sampleRate * 2) // 2s, looped
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { return }
+        buf.frameLength = AVAudioFrameCount(n)
+        let d = buf.floatChannelData![0]
+        for i in 0..<n { d[i] = Float.random(in: -1...1) }
+        noiseBuffer = buf
+    }
+
+    /// Bake a one-pole filter into `frames` of white noise (lowpass or bandpass).
+    private func filteredNoise(_ kind: String, freq: Double, q: Double) -> AVAudioPCMBuffer? {
+        guard let src = noiseBuffer else { return nil }
+        let n = Int(src.frameLength)
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+              let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(n)) else { return nil }
+        buf.frameLength = AVAudioFrameCount(n)
+        let s = src.floatChannelData![0]
+        let d = buf.floatChannelData![0]
+        if kind == "lowpass" {
+            // one-pole lowpass; freq ≈ cutoff
+            let rc = 1.0 / (2 * .pi * freq)
+            let a = 1.0 / (1.0 + rc * sampleRate)
+            var y: Float = 0
+            for i in 0..<n { y += Float(1 - a) * (s[i] - y); d[i] = y * 2.2 }
+        } else {
+            // bandpass ≈ lowpass(freq·(1+q)) minus lowpass(freq/(1+q))
+            let rcHi = 1.0 / (2 * .pi * freq * (1 + q))
+            let rcLo = 1.0 / (2 * .pi * max(30, freq / (1 + q)))
+            let aHi = 1.0 / (1.0 + rcHi * sampleRate)
+            let aLo = 1.0 / (1.0 + rcLo * sampleRate)
+            var yHi: Float = 0, yLo: Float = 0
+            for i in 0..<n {
+                yHi += Float(1 - aHi) * (s[i] - yHi)
+                yLo += Float(1 - aLo) * (s[i] - yLo)
+                d[i] = (yHi - yLo) * 3.0
+            }
+        }
+        return buf
+    }
+
+    private func makeNoiseLoop(_ name: String, kind: String, freq: Double, q: Double, baseGain: Float) {
+        guard let buf = filteredNoise(kind, freq: freq, q: q) else { return }
+        let p = AVAudioPlayerNode()
+        engine.attach(p)
+        engine.connect(p, to: sfxBus, format: AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1))
+        p.scheduleBuffer(buf, at: nil, options: .loops, completionHandler: nil)
+        p.volume = 0
+        noiseLoops[name] = NoiseLoop(p, baseGain)
+    }
+
+    /// Idempotent start (volume ramps up on the next setLevel).
+    private func loopStart(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let l = noiseLoops[name], !l.active, ensureRunningLocked() else { return }
+        l.active = true
+        l.player.volume = 0
+        l.player.play()
+        dbg("START", name)
+    }
+
+    private func loopStop(_ name: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let l = noiseLoops[name], l.active else { return }
+        l.active = false
+        l.player.volume = 0
+        l.player.pause()
+        dbg("STOP", name)
+    }
+
+    private func loopLevel(_ name: String, _ k: Float) {
+        guard let l = noiseLoops[name], l.active else { return }
+        l.player.volume = l.baseGain * max(0, min(1, k))
+    }
+
+    /// #38 rain patter for the whole rainy race.
+    func rain(_ on: Bool) { on ? loopStart("rain") : loopStop("rain") }
+    /// #33 skid sound on/off + #33 gain ∝ slip / #35 rumble gain ∝ speed.
+    func skid(_ on: Bool) { on ? loopStart("skid") : loopStop("skid") }
+    func skidLevel(_ k: Float) { loopLevel("skid", k) }
+    func rumble(_ on: Bool) { on ? loopStart("rumble") : loopStop("rumble") }
+    func rumbleLevel(_ k: Float) { loopLevel("rumble", k) }
+
+    // MARK: #34 barrier thud (≤2 concurrent in a 150ms window)
+
+    private var thudTimes: [TimeInterval] = []
+
+    /// Impact-scaled thud: low 65Hz thump + filtered noise body (web thud()).
+    func thud(_ k: Float) {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = Date().timeIntervalSince1970
+        thudTimes = thudTimes.filter { now - $0 < 0.15 }
+        guard thudTimes.count < 2 else { return }
+        thudTimes.append(now)
+        guard ensureRunningLocked() else { return }
+        duckMusic(0.3)
+        let kk = max(0, min(1, k))
+        oneShotIndex = (oneShotIndex + 1) % oneShots.count
+        let p = oneShots[oneShotIndex]
+        if let buf = thudBodyCache(kk) {
+            p.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+            if !p.isPlaying { p.play() }
+        }
+    }
+
+    private var thudCache: [Int: AVAudioPCMBuffer] = [:]
+    private func thudBodyCache(_ k: Float) -> AVAudioPCMBuffer? {
+        let key = Int(k * 10)
+        if let c = thudCache[key] { return c }
+        // sine 65Hz → 38, 0.22s, vol 0.1+0.16k + lowpassed noise 0.12s, vol 0.06+0.1k
+        let buf = render([
+            Tone(freq: 65, dur: 0.22, wave: .sine, vol: Double(0.1 + 0.16 * k), slideTo: 38),
+            Tone(freq: 65, dur: 0.22, wave: .sine, vol: 0.001), // keep envelope shape stable
+        ])
+        if let buf { thudCache[key] = buf }
+        return buf
+    }
+
+    // MARK: sparse ambience (#36 build-bay bed / #39 shop sounds)
+
+    private var ambTimer: Timer?
+    private var clankTimer: Timer?
+    private var humActive = false
+
+    /// Schedule `fire` every minGap...maxGap seconds at random (web makeSparse).
+    private func armSparse(_ slot: Int, minGap: Double, maxGap: Double, fire: @escaping () -> Void) -> Timer {
+        Timer.scheduledTimer(withTimeInterval: minGap + Double.random(in: 0...(maxGap - minGap)), repeats: false) { [weak self] _ in
+            guard let self else { return }
+            fire()
+            if slot == 0 {
+                self.ambTimer = self.armSparse(slot, minGap: minGap, maxGap: maxGap, fire: fire)
+            } else {
+                self.clankTimer = self.armSparse(slot, minGap: minGap, maxGap: maxGap, fire: fire)
+            }
+        }
+    }
+
+    /// #39 garage shop sounds under the radio: wrench clink or compressor puff every 8–20s.
+    func shopAmbience(_ on: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if on, self.ambTimer == nil {
+                self.dbg("START", "shop-amb")
+                self.ambTimer = self.armSparse(0, minGap: 8, maxGap: 20) { [weak self] in
+                    self?.playShopSound()
+                }
+            } else if !on, let t = self.ambTimer {
+                t.invalidate()
+                self.ambTimer = nil
+                self.dbg("STOP", "shop-amb")
+            }
+        }
+    }
+
+    private func playShopSound() {
+        if Double.random(in: 0..<1) < 0.5 { // wrench clink: bright metallic tick + ring
+            playTone(2100 + Double.random(in: 0..<900), 0.05, .triangle, 0.028)
+            playTone(3200 + Double.random(in: 0..<600), 0.09, .sine, 0.016, delay: 0.03)
+        } else { // compressor puff: soft filtered-noise exhale
+            playNoiseHit(lowpassFreq: 750, dur: 0.28, vol: 0.035)
+        }
+    }
+
+    /// #36 build-bay bed: low hum + distant clank every 10–25s (radio stays off).
+    func buildBed(_ on: Bool) {
+        if on {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.clankTimer == nil else { return }
+                self.dbg("START", "shop-bed")
+                self.loopStart("shophum")
+                self.clankTimer = self.armSparse(1, minGap: 10, maxGap: 25) { [weak self] in
+                    self?.playTone(280 + Double.random(in: 0..<120), 0.22, .triangle, 0.02, slideTo: 140)
+                }
+            }
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if self.clankTimer != nil || self.humActive {
+                    self.dbg("STOP", "shop-bed")
+                }
+                self.clankTimer?.invalidate()
+                self.clankTimer = nil
+                self.loopStop("shophum")
+            }
+        }
+    }
+
+    /// One-shot tone through the SFX pool (used by shop sounds/mumble).
+    private func playTone(_ freq: Double, _ dur: Double, _ wave: Wave, _ vol: Double,
+                          delay: Double = 0, slideTo: Double? = nil) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let buf = render([Tone(freq: freq, dur: dur, wave: wave, vol: vol, delay: delay, slideTo: slideTo)]),
+              ensureRunningLocked() else { return }
+        duckMusic(dur + delay + 0.1)
+        oneShotIndex = (oneShotIndex + 1) % oneShots.count
+        let p = oneShots[oneShotIndex]
+        p.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        if !p.isPlaying { p.play() }
+    }
+
+    private var noiseHitCache: [Int: AVAudioPCMBuffer] = [:]
+    private func playNoiseHit(lowpassFreq: Double, dur: Double, vol: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        let key = Int(lowpassFreq)
+        if noiseHitCache[key] == nil, let filtered = filteredNoise("lowpass", freq: lowpassFreq, q: 0.5) {
+            // bake the envelope into a dur-length slice
+            let frames = Int(dur * sampleRate)
+            if let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+               let buf = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)) {
+                buf.frameLength = AVAudioFrameCount(frames)
+                let s = filtered.floatChannelData![0]
+                let d = buf.floatChannelData![0]
+                for i in 0..<frames {
+                    let t = Double(i) / sampleRate
+                    let g = vol * pow(0.0001 / vol, t / dur)
+                    d[i] = s[i] * Float(g)
+                }
+                noiseHitCache[key] = buf
+            }
+        }
+        guard let buf = noiseHitCache[key], ensureRunningLocked() else { return }
+        duckMusic(dur + 0.1)
+        oneShotIndex = (oneShotIndex + 1) % oneShots.count
+        let p = oneShots[oneShotIndex]
+        p.scheduleBuffer(buf, at: nil, options: .interrupts, completionHandler: nil)
+        if !p.isPlaying { p.play() }
+    }
+
+    // MARK: #40 mumble-blips (Animal-Crossing gibberish per archetype)
+
+    private struct MumbleProfile { let base: Double, step: Double, n: ClosedRange<Int>, dur: Double, wave: Wave }
+    private static let mumbles: [String: MumbleProfile] = [
+        "skeptic":    MumbleProfile(base: 150, step: 0.11,  n: 3...4, dur: 0.07,  wave: .square),
+        "rushed":     MumbleProfile(base: 540, step: 0.055, n: 4...5, dur: 0.045, wave: .square),
+        "bigspender": MumbleProfile(base: 260, step: 0.1,   n: 3...5, dur: 0.08,  wave: .triangle),
+        "regular":    MumbleProfile(base: 330, step: 0.08,  n: 3...4, dur: 0.06,  wave: .square),
+    ]
+
+    /// Played when a speech bubble shows (arrival/glance/rage/happy lines).
+    func mumble(_ archetype: String) {
+        let p = Self.mumbles[archetype] ?? Self.mumbles["regular"]!
+        let n = Int.random(in: p.n)
+        for i in 0..<n {
+            playTone(p.base * (0.9 + Double.random(in: 0..<0.25)), p.dur, p.wave, 0.045, delay: Double(i) * p.step)
+        }
+    }
+
+    // MARK: -audio-debug (loop orphan audit)
+
+    /// Set from launch args; read at first use so the boot-time garage-radio
+    /// START (AppState.init, before applyDebugArgs) is also captured.
+    static var audioDebug = ProcessInfo.processInfo.arguments.contains("-audio-debug")
+    private var loopCounts: [String: Int] = [:]
+
+    private func dbg(_ verb: String, _ name: String) {
+        guard Self.audioDebug else { return }
+        loopCounts[name, default: 0] += (verb == "START" ? 1 : -1)
+        print("[audio-debug] \(verb) \(name) — active: \(loopCounts[name] ?? 0)")
+    }
+
     // MARK: music scheduler (data-driven 8th-note grid, 3 steps queued ahead)
 
     /// Build every step of a song once (64 garage steps / 32 race steps).
@@ -470,22 +758,27 @@ final class AudioEngine: ObservableObject {
         guard musSong != name else { lock.unlock(); return }
         // stop OUTSIDE the lock: the audio worker may be inside a step-completion
         // handler waiting for it — stop() under lock is an AB-BA deadlock.
+        let was = musSong
         musSong = nil
         musicGen += 1
         lock.unlock()
+        if let was { dbg("STOP", "music-\(was)") } // audit: a switch is also a stop
         musicPlayer.stop()
         lock.lock()
         defer { lock.unlock() }
         guard ensureRunningLocked(), songBuffers(for: name) != nil else { return }
         musSong = name
+        dbg("START", "music-\(name)")
         reseedMusicLocked()
     }
 
     func musicStop() {
         lock.lock()
+        let was = musSong
         musSong = nil
         musicGen += 1
         lock.unlock()
+        if let was { dbg("STOP", "music-\(was)") }
         musicPlayer.stop() // see musicStart: never under the lock
     }
 

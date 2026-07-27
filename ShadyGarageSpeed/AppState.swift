@@ -57,16 +57,32 @@ final class AppState: ObservableObject {
         didSet {
             guard phase != oldValue else { return }
             A11y.screenChanged(phaseDescription) // "screen changed" + phase name
-            // garage radio everywhere except the race loop (which takes over at GO)
+            let sfx = AudioEngine.shared
+            // garage radio everywhere except build (bed instead) and race (loop at GO)
             switch phase {
-            case .race: break
-            default: AudioEngine.shared.musicStart("garage")
+            case .race:
+                sfx.buildBed(false)
+                sfx.shopAmbience(false)
+            case .build:
+                sfx.musicStop()       // radio must NOT layer over the build-bay bed
+                sfx.buildBed(true)    // #36 hum + sparse clanks
+                sfx.shopAmbience(false)
+            default:
+                sfx.buildBed(false)
+                sfx.musicStart("garage")
+                sfx.shopAmbience(phase == .garage) // #39 shop sounds under the radio
             }
         }
     }
     @Published var lastFinish: FinishData?
     /// Pre-race track-select sheet (opened by the garage topbar Race button).
     @Published var showTrackSheet = false
+    /// Results photo mode: UI hidden, slow orbit of the parked car (web #25).
+    @Published var showPhotoMode = false {
+        didSet {
+            raceScene.photoMode = showPhotoMode
+        }
+    }
 
     /// VoiceOver phase names ("Garage. Day 3." style).
     private var phaseDescription: String {
@@ -113,7 +129,13 @@ final class AppState: ObservableObject {
             guard let self else { return }
             self.lastFinish = data
             self.raceChallenge = nil // the challenge is consumed by the run
-            if data.challenge?.becameLegend == true { self.showLegendOverlay = true }
+            if ProcessInfo.processInfo.arguments.contains("-confetti") {
+                self.raceScene.confettiBurst() // debug: force a confetti burst
+            }
+            if data.challenge?.becameLegend == true {
+                self.showLegendOverlay = true
+                self.raceScene.confettiBurst() // #26 legend confetti over the results
+            }
             // VoiceOver: results + ladder progress
             if let ch = data.challenge {
                 if ch.win {
@@ -129,6 +151,10 @@ final class AppState: ObservableObject {
                 A11y.announce("Lap complete, \(String(format: "%.1f", data.lap)) seconds\(data.newBest ? ", new best" : "").")
             }
             self.phase = .results
+            // debug: jump straight into photo mode on finish
+            if ProcessInfo.processInfo.arguments.contains("-photo") {
+                self.enterPhotoMode()
+            }
         }
         raceScene.onExit = { [weak self] in
             guard let self else { return }
@@ -148,6 +174,15 @@ final class AppState: ObservableObject {
     }
 
     // MARK: navigation
+
+    /// Results 📷: hide the UI and orbit the parked car; tap anywhere to exit.
+    func enterPhotoMode() {
+        showPhotoMode = true
+    }
+
+    func exitPhotoMode() {
+        showPhotoMode = false
+    }
 
     /// scenePhase → all scene sims: false freezes integration (no dt spike on
     /// resume) and drops race inputs/audio; true resumes cleanly.
@@ -262,7 +297,11 @@ final class AppState: ObservableObject {
         if args.contains("-watch") { garageScene.forceWatch = true }
         if args.contains("-nowatch") { garageScene.watchDisabled = true }
         if args.contains("-cop") { garageScene.forceCop = true }
+        if let i = args.firstIndex(of: "-entrance"), i + 1 < args.count {
+            garageScene.forceEntrance = args[i + 1] // normal|reverse|swing (screenshots)
+        }
         if args.contains("-debughud") { garageScene.debugHUD = true }
+        if args.contains("-audio-debug") { AudioEngine.audioDebug = true }
         if let i = args.firstIndex(of: "-heat"), i + 1 < args.count,
            let h = Int(args[i + 1]) {
             game.heat = min(100, max(0, h))

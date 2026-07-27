@@ -20,6 +20,23 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - [x] #69 Tiered contracts (Standard ×1/+3d, Rush ×1.6/+1d, Premium ×1.5/+4d & tier 3-4 only; rank badge) — iOS
 - [x] #31 Lo-fi garage radio (72bpm Am–F–C–G chiptune, buffer-queue scheduler, musicBus ducked −6dB under SFX; menu/garage/build) — iOS
 - [x] #32 Race music loop (128bpm: bass pulse + noise hats + lead arp; starts at GO, stops at finish/forfeit/exit) — iOS
+- [x] #21 Chase-cam yaw lag (camera heading low-passed ~4/s; the car visibly rotates in frame when steering, recenters smoothly) — iOS
+- [x] #22 Speed lines (24 recycled camera-space streaks radial from screen center above 75% max speed, density ∝ speed; full rate — no COARSE tier on iOS) — iOS
+- [x] #23 Impact-scaled camera shake (barrier impulse ∝ pre-penalty impact speed, ~0.3s smooth decay; off-track rumble untouched) — iOS
+- [x] #24 Slow-mo finish (0.45× time for 0.9s real over the line + FOV pulse; lap timer keeps true time) — iOS
+- [x] #25 Photo mode on results (📷 hides all UI but a tiny hint, camera slowly orbits the parked car; any tap exits) — iOS
+- [x] #26 Legend confetti (120 recycled colored quads, gravity + flutter, ~4s over the results scene; web uses 150) — iOS
+- [x] #27 Countdown camera pan (high/wide beauty shot of car + gantry swoops into chase over the 3-2-1, every race) — iOS
+- [x] #28 Customer entrance variety (normal 50% / reverse-park facing out 25% / fast-and-swing 25% with tire squeak) — iOS
+- [x] #29 Owner flinch (hold a Steal button → owner does a suspicious glance-lean, 0.3s) — iOS
+- [x] #30 Minimap start pulse (start/finish tick pulses scale/alpha at 1Hz; static under Reduce Motion) — iOS
+- [x] #33 Skid sound (bandpass noise loop, gain ∝ lateral slip; same slip condition as skid marks) — iOS
+- [x] #34 Barrier thud (low thump + noise body scaled by pre-penalty impact speed; ≤2 concurrent in 150ms) — iOS
+- [x] #35 Off-track rumble (lowpass noise loop while off-track, gain ∝ speed) — iOS
+- [x] #36 Phase SFX themes (build-bay bed: low shop hum + distant clank every 10–25s; menu/garage keep the garage radio, which stops so the two never layer) — iOS
+- [x] #38 Rain ambience (steady lowpassed-noise patter for the whole rainy race, fixed low gain) — iOS
+- [x] #39 Garage ambience (wrench clink or compressor puff every 8–20s under the radio) — iOS
+- [x] #40 Customer mumble-blips (pitched gibberish per speech bubble; skeptic low, rushed fast-high, bigspender jolly, regular neutral) — iOS
 
 ## Earlier iOS batches (pre-backlog)
 
@@ -39,5 +56,3 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - #49 Three save slots (single save on iOS; backup via `sgs_save_prev` instead)
 - #50 Cloud-save design doc
 - #81/#82/#89/#91/#92/#98/#99/#100 (e2e harness, CI budgets, beta channel, analytics, OG tags, itch page, press kit, launch drafts)
-- #33–#36, #38–#40 (extra audio beds: skid, off-track rumble, build-bay hum, rain/garage ambience, mumble blips) — candidates for a later audio pass
-- #21–#30 batch-5 juice (cam yaw lag, speed lines, impact shake, slow-mo finish, photo mode, confetti, countdown pan, entrance variety, owner flinch, minimap pulse)

@@ -426,6 +426,9 @@ struct GarageView: View {
                           label: "Steal \(partName)", hint: "Opens the timing minigame") {
                     scene.stealPart(i)
                 }
+                .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { _ in
+                    scene.ownerFlinch() // #29 owner does a suspicious glance-lean
+                })
                 if p.tier == 1 && !p.stolen {
                     Text("stock – not worth stealing")
                         .font(sgsFont(10))

@@ -105,7 +105,7 @@ source verbatim.
 Jump straight into a phase (used for headless screenshots/testing):
 
 ```sh
-xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod night -rain off -autodrive
+xcrun simctl launch booted com.noshu.shadygaragespeed -phase race -tod night -rain off -autodrive
 ```
 
 - `-phase menu|setup|garage|build|race` — start in a phase.
@@ -137,6 +137,11 @@ xcrun simctl launch booted com.amurchadha.shadygaragespeed -phase race -tod nigh
 - `-crewsheet` — garage opens with the crew hire sheet up.
 - `-reset` — wipe the `sgs_save` UserDefaults save on launch (fresh state; used by UI tests).
 - `-seedparts` — seed the inventory with one tier-3 part of each type (deterministic build-bay tests).
+- `-audio-debug` — log every audio-loop START/STOP with a running active count (orphan audit;
+  capture stdout via `xcrun simctl launch --console-pty … | grep audio-debug`).
+- `-confetti` — force a confetti burst when the race finishes (screenshots).
+- `-photo` — enter results photo mode automatically on finish (screenshots).
+- `-entrance normal|reverse|swing` — force the customer entrance roll (screenshots).
 
 ## UI tests
 
@@ -291,6 +296,37 @@ Accessibility identifier convention: kebab-case ids on interactive elements —
 - **Difficulty**: Chill/Normal/Cutthroat multipliers (suspicion/heat/payment/minigame
   green width) applied everywhere; persisted outside the save; shown in the menu footer
   next to the version+build from Info.plist.
+
+## Juice & audio beds (final parity batch)
+
+- **Race juice (web #21–#27)**: chase-cam yaw lag (~4/s low-pass — the car visibly
+  rotates in frame when steering, then recenters), speed lines above 75% max speed
+  (24 recycled camera-space streaks, spawn density ∝ speed), impact-scaled camera
+  shake (barrier impulse ∝ pre-penalty impact speed, ~0.3s smooth decay), slow-mo
+  finish (0.45× time for 0.9s over the line + FOV pulse; the lap timer keeps true
+  time), photo mode on results (📷 hides all UI but a tiny hint, camera slowly orbits
+  the parked car, tap anywhere exits), legend confetti (120 recycled quads, gravity +
+  flutter, ~4s over the results scene), countdown camera pan (high/wide beauty shot
+  of car + gantry swoops into the chase cam over the 3-2-1, every race).
+- **Garage juice (#28–#30)**: entrance variety (normal 50% / reverse-park 25% — pulls
+  past the bay nose-first, then backs in facing out / fast-and-swing 25% with a tire
+  squeak at 1.1s), owner flinch (press-and-hold a Steal button → 0.3s suspicious
+  glance-lean composed over the phone tilt), minimap start-tick pulse (1Hz
+  scale+alpha, drawn per-frame outside the cached track image; static under Reduce
+  Motion).
+- **Audio beds (#33–#36, #38–#40)**: skid loop (bandpass noise, gain ∝ slip; same slip
+  condition as the skid marks), barrier thud (65→38Hz sine + noise body scaled by
+  impact, ≤2 concurrent per 150ms), off-track rumble (lowpass noise, gain ∝ speed),
+  build-bay bed (low hum + distant clank every 10–25s; the garage radio stops so the
+  two never layer), rain patter for the whole rainy race, garage ambience (wrench
+  clink / compressor puff every 8–20s under the radio), customer mumble-blips
+  (per-archetype pitched gibberish on each speech bubble: skeptic low, rushed
+  fast-high, bigspender jolly, regular neutral).
+- All motion juice respects Reduce Motion (yaw lag snaps, streaks/confetti/flinch/
+  countdown-pan/slow-mo skip, photo orbit and minimap tick go static) and every bed
+  routes through the existing `sfxBus`/`musicBus` sliders. `-audio-debug` logs every
+  loop START/STOP with a running count for orphan audits (verified balanced across
+  race/build/garage cycles — no orphaned loops).
 
 ## Notes
 

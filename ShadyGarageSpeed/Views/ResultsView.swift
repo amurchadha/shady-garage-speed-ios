@@ -77,6 +77,10 @@ struct ResultsView: View {
 
                 HStack {
                     SGSButton(title: "Race Again", a11y: "race-again") { app.raceAgain() }
+                    SGSButton(title: "📷", ghost: true, a11y: "photo-mode",
+                              label: "Photo mode", hint: "Orbit the car with the UI hidden") {
+                        app.enterPhotoMode()
+                    }
                     Spacer()
                     SGSButton(title: "Back to Garage", ghost: true, a11y: "results-back") { app.backToGarage() }
                 }

@@ -223,13 +223,22 @@ struct RaceView: View {
 
     private func minimap(size: CGFloat) -> some View {
         ZStack {
-            if let img = Self.trackImage(track: scene.minimapTrack,
-                                         tick: scene.minimapStartTick, side: size) {
+            if let img = Self.trackImage(track: scene.minimapTrack, side: size) {
                 Image(uiImage: img)
                     .resizable()
                     .frame(width: size, height: size)
             }
             Canvas { ctx, canvasSize in
+                // #30 start tick pulses at 1Hz (static mid-state under Reduce Motion)
+                let pulse = A11y.reduceMotion ? 0.5 : 0.5 + 0.5 * sin(CACurrentMediaTime() * 2 * .pi)
+                var tick = Path()
+                let t0 = scene.minimapStartTick.0
+                let t1 = scene.minimapStartTick.1
+                tick.move(to: CGPoint(x: t0.x * canvasSize.width, y: t0.y * canvasSize.height))
+                tick.addLine(to: CGPoint(x: t1.x * canvasSize.width, y: t1.y * canvasSize.height))
+                ctx.stroke(tick, with: .color(Color.sgsAccent.opacity(0.7 + 0.3 * pulse)),
+                           style: StrokeStyle(lineWidth: 5 * (1 + 0.35 * pulse), lineCap: .round))
+
                 let pp = scene.minimapPlayer
                 let c = CGPoint(x: pp.x * canvasSize.width, y: pp.y * canvasSize.height)
                 let r: CGFloat = 4.5
@@ -240,11 +249,11 @@ struct RaceView: View {
         }
     }
 
-    /// Static track outline + start tick, rendered once per size (the old code
-    /// restroked 800 segments at 30Hz).
+    /// Static track outline, rendered once per size (the old code restroked
+    /// 800 segments at 30Hz). The start tick is drawn per-frame so it can pulse.
     private static var trackImageCache: [Int: UIImage] = [:]
 
-    private static func trackImage(track: [CGPoint], tick: (CGPoint, CGPoint), side: CGFloat) -> UIImage? {
+    private static func trackImage(track: [CGPoint], side: CGFloat) -> UIImage? {
         let key = Int(side)
         if let cached = trackImageCache[key] { return cached }
         guard track.count > 1 else { return nil }
@@ -262,12 +271,6 @@ struct RaceView: View {
                 c.addLine(to: CGPoint(x: p.x * side, y: p.y * side))
             }
             c.closePath()
-            c.strokePath()
-            c.setStrokeColor(UIColor(Color.sgsAccent).cgColor)
-            c.setLineWidth(5)
-            c.beginPath()
-            c.move(to: CGPoint(x: tick.0.x * side, y: tick.0.y * side))
-            c.addLine(to: CGPoint(x: tick.1.x * side, y: tick.1.y * side))
             c.strokePath()
         }
         trackImageCache[key] = img
