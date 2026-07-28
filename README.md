@@ -146,6 +146,12 @@ xcrun simctl launch booted com.noshu.shadygaragespeed -phase race -tod night -ra
 - `-reverse` — pre-flip every track card to reversed (and the debug race) (#20 screenshots).
 - `-seedstock N` — seed N tier-1 parts (bulk-sell tests).
 - `-oldversion` — treat the loaded save as stamped by an older version (#80 tests).
+- `-chassis N` — set the custom chassis level (underglow/widebody screenshots).
+- `-fitall` — install the best inventory part of every type (full-build screenshots).
+- `-customertier N` — pin every generated part tier (rim-tier screenshots).
+- `-raids N` — set lifetime raid count (prestige-offer screenshots).
+- `-legend` — set Street Legend + ladder 4 (rematch screenshots).
+- `-rematch N` — set every rival's rematch tier (⭐ row screenshots).
 
 ## UI tests
 
@@ -445,6 +451,39 @@ each feature fails silent (never authenticates / never syncs).
 - New UI tests: `testAchievementToast` (first fix → First Wrench toast + gallery),
   `testWhatsNewOnce` (bump → card → dismiss → never again). Debug arg `-oldversion`
   simulates a save from an older version.
+
+## Car content & prestige meta (#3–#12)
+
+- **Nitrous Kit (#8)** — 7th part type (🚀): tier → NOS capacity 100+25t, regen
+  8+4t; trunk-tank mesh on every car, build slot, catalog, fence, contracts, pity,
+  NOS mini-stat line in the bay; the race reads the tier (HUD shows % of capacity).
+- **ECU (#9)** — 8th part type (💾): +3t accel plus the launch-strong taper
+  (peak ×(1+0.15t) decaying to 35% of peak at top speed, exact port); dash box
+  with a green LED.
+- **Paint shop (#10)**: 8 swatches + hue slider (hslToHex s 0.65 l 0.5), persisted
+  `paint`, applied to the custom car in the bay and on track.
+- **Rim tiers (#11)**: stock gray / sport hub / pro wide-stance / elite gold spokes
+  (web proportions), on customer cars and the custom build.
+- **Underglow L4 (#12)**: additive glow plane + omni light at chassis L4, pulsing
+  (0.8+0.2·sin 2.4t; static under Reduce Motion) in the bay and in races.
+- **Skip Town (#3)**: from the second raid a modal offers the exit — keep ONE
+  installed part + legend/meta (achievements, stats, HoF, bests, paint, daily,
+  rematch, challenge stamps), economy resets to Day 1, pay ×(1+0.5N) (cap ×2.5),
+  tier odds shift ~10 points/level into t3/t4, ⭐N rides the menu goal.
+- **Garage levels (#4)**: L2 Second Lift ($2,500: +5% pay, second lift visuals) →
+  L3 Showroom Floor ($6,000: +10% pay, golden 5%, slab + string lights); Build
+  section, persisted, visuals rebuilt on enter/purchase.
+- **Second bay (#5)**: L2+ — after a job a customer may already be waiting
+  (40%/60% at L3): [Serve Next] short pull-in or [Break]; cops at 70+ preempt.
+- **Rematches (#6)**: post-legend every rival is re-challengeable from the ladder —
+  time ×0.92ᵗ (floor classic par×0.75), purse ×1.5ᵗ, per-rival tier persisted with
+  ⭐ rows; ghosts/results use the adjusted numbers.
+- **Daily challenge (#7)**: deterministic track+dir+TOD+weather from
+  mulberry32("dailyrun:"+date) (bit-parity verified), card atop the track sheet,
+  $200 completion + $100 under par×1.05 once/day, "📅 DAILY RUN ✓" on results.
+- New UI tests: `testPaintPersists` (swatch → relaunch keeps the paint),
+  `testDailyChallengeDeterminism` (card matches an independent RNG implementation;
+  results carry the ✓ line).
 
 ## Notes
 

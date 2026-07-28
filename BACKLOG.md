@@ -64,6 +64,16 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - [x] #76 Friend bios (setup ⓘ bio cards + menu Meet the Crew; text verbatim) — iOS
 - [x] #79 Credits (menu footer → credits modal) — iOS
 - [x] #80 What's-New (boot card on version change, dismiss stamps; never on first run) — iOS
+- [x] #8 Nitrous Kit (7th type 🚀: tier → NOS cap 100+25t, regen 8+4t; trunk tank mesh; full coverage incl. build mini-stat) — iOS
+- [x] #9 ECU (8th type 💾: +3t accel + launch-strong taper floored at 35% of peak; dash box mesh) — iOS
+- [x] #10 Paint shop (8 swatches + hue slider, persisted, applied in bay + race) — iOS
+- [x] #11 Rim tiers (stock/sport/pro/elite styles on customer + custom cars) — iOS
+- [x] #12 Underglow L4 (glow plane + light, pulse, static under Reduce Motion; build + race) — iOS
+- [x] #3 Skip Town prestige (from 2nd raid: keep one fitted part + legend/meta, economy resets, pay ×(1+0.5N) cap 3, better tier odds, ⭐N menu badge) — iOS
+- [x] #4 Garage levels (L2 $2,500 +5% pay + second lift visuals; L3 $6,000 +10% pay + golden 5% + showroom visuals) — iOS
+- [x] #5 Second bay (L2+: 40%/60% a customer waits after a job; Serve Next short pull-in or Break) — iOS
+- [x] #6 Rematches (post-legend ladder rematches: time ×0.92ᵗ floor par×0.75, purse ×1.5ᵗ, per-rival tier persisted with ⭐ display) — iOS
+- [x] #7 Daily challenge (deterministic track+dir+TOD+wx from date seed, $200 + $100 under par×1.05 once/day, DAILY RUN ✓ on results) — iOS
 
 ## Earlier iOS batches (pre-backlog)
 

@@ -133,7 +133,7 @@ final class BuildScene: SceneController {
 
     func refreshCustomCar() {
         customCar?.removeFromParentNode()
-        let car = CarFactory.makeCustomCar(carState: game.car)
+        let car = CarFactory.makeCustomCar(carState: game.car, paint: game.paint) // #10
         car.position.y = 0.59
         turntable.addChildNode(car)
         customCar = car
@@ -247,6 +247,14 @@ final class BuildScene: SceneController {
         elapsed += dt
         if !A11y.reduceMotion {
             turntable.eulerAngles.y += Float(dt) * 0.35
+        }
+        // #12 underglow pulse (static under reduce-motion)
+        if let lightNode = customCar?.childNode(withName: "uglowLight", recursively: true) {
+            let gk: Float = A11y.reduceMotion ? 1 : 0.8 + 0.2 * Float(sin(elapsed * 2.4))
+            lightNode.light?.intensity = 400 * CGFloat(gk)
+            if let plane = customCar?.childNode(withName: "uglowPlane", recursively: true) {
+                plane.opacity = CGFloat(0.28 * gk)
+            }
         }
         if portraitFraming {
             // portrait: aim below the car so it rides above the bottom-sheet panel

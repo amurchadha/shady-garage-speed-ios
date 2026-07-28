@@ -42,9 +42,10 @@ struct LadderSheet: View {
 
     @ViewBuilder
     private func row(_ pos: Int) -> some View {
-        let rival = GameState.ladderRival(pos)!
+        let rival = game.rivalFor(pos) // #6 rematch-adjusted time + purse
         let beaten = pos < game.ladder
         let current = pos == game.ladder && !game.legend
+        let tier = game.rematchTier(pos)
         let prize = "\(GameState.tierNames[rival.prizeTier]) \(GameState.partLabels[rival.prizeType] ?? rival.prizeType) + $\(rival.purse)"
         HStack(spacing: 10) {
             Text(beaten ? "✓" : current ? "🏁" : "🔒")
@@ -53,8 +54,16 @@ struct LadderSheet: View {
                 .frame(width: 24)
                 .accessibilityIdentifier("ladder-row-\(pos)")
             VStack(alignment: .leading, spacing: 2) {
-                Text(rival.name)
-                    .font(sgsFont(15, .bold))
+                HStack(spacing: 6) {
+                    Text(rival.name)
+                        .font(sgsFont(15, .bold))
+                    if tier > 0 {
+                        // #6 rematch escalation stars (cap 6 shown)
+                        Text(String(repeating: "⭐", count: min(6, tier)))
+                            .font(sgsFont(11))
+                            .accessibilityIdentifier("rematch-stars-\(pos)")
+                    }
+                }
                 Text("Target \(String(format: "%.1f", rival.time))s · \(prize)")
                     .font(sgsFont(12))
                     .foregroundStyle(Color.sgsMuted)
@@ -64,6 +73,14 @@ struct LadderSheet: View {
                 SGSButton(title: "Challenge", small: true, a11y: "ladder-challenge",
                           label: "Challenge \(rival.name)",
                           hint: "Starts a pink-slip race") {
+                    dismiss()
+                    app.startChallenge(pos)
+                }
+            } else if game.legend && beaten {
+                // #6 post-legend rematches: harder times, bigger purses per tier
+                SGSButton(title: "Rematch", small: true, a11y: "rematch-\(pos)",
+                          label: "Rematch \(rival.name)",
+                          hint: "Pink-slip rematch at tier \(tier + 1)") {
                     dismiss()
                     app.startChallenge(pos)
                 }

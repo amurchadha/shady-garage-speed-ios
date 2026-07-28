@@ -48,6 +48,22 @@ struct GarageView: View {
                             .transition(.opacity)
                             .accessibilityIdentifier("garage-prompt")
                     }
+                    if scene.nextWaiting {
+                        // #5 second bay: a customer is already waiting outside
+                        HStack(spacing: 8) {
+                            Text("🚗 Customer waiting")
+                                .font(sgsFont(13, .bold))
+                            SGSButton(title: "Serve Next", small: true, a11y: "bay-serve",
+                                      hint: "Short pull-in, straight to inspection") { scene.serveNext() }
+                            SGSButton(title: "Break", ghost: true, small: true, a11y: "bay-break",
+                                      hint: "Send them away") { scene.breakNext() }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Color.sgsPanel)
+                        .clipShape(Capsule())
+                        .accessibilityIdentifier("bay-next")
+                    }
                     if scene.debugHUD {
                         Text("cars:\(scene.carCount)")
                             .font(sgsFont(10, .bold, mono: true))
@@ -193,6 +209,14 @@ struct GarageView: View {
                     .presentationDetents([.medium])
                     .presentationBackground(.ultraThinMaterial)
                     .interactiveDismissDisabled(true) // a choice is required to continue
+            }
+            // #3 Skip Town prestige offer (from the second raid onward)
+            .sheet(isPresented: Binding(get: { scene.showPrestige },
+                                        set: { scene.showPrestige = $0 })) {
+                prestigeModal
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(.ultraThinMaterial)
+                    .interactiveDismissDisabled(true) // skip or stay — a choice is required
             }
         }
     }
@@ -469,6 +493,45 @@ struct GarageView: View {
             .stroke(selected ? Color.sgsAccent : Color.clear, lineWidth: 1.5))
         .accessibilityElement(children: .contain) // sensible VoiceOver reading order
         .onTapGesture { scene.selectedPart = p.type }
+    }
+
+    // MARK: #3 Skip Town prestige modal (presented as a true .sheet)
+
+    private var prestigeModal: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("🚔 Raid #\(game.stats.raids + 1) is at the door. Skip town?")
+                .font(.title3.bold())
+            Text("Keep ONE installed part + your legend status — lose cash, inventory and chassis. New town: payments ×\(String(format: "%.1f", 1 + 0.5 * Double(min(3, game.prestige + 1)))), richer customers, heat 0.")
+                .foregroundStyle(Color.sgsMuted)
+            if scene.prestigeKeepOptions.isEmpty {
+                Text("Nothing installed — you keep only your reputation.")
+                    .font(sgsFont(13))
+                    .foregroundStyle(Color.sgsMuted)
+            } else {
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(scene.prestigeKeepOptions) { p in
+                            let label = "\(GameState.partIcons[p.type] ?? "") \(GameState.tierNames[p.tier]) \(GameState.partLabels[p.type] ?? p.type)"
+                            SGSButton(title: "Keep \(label) → Skip Town", small: true,
+                                      a11y: "prestige-keep-\(p.type)") {
+                                scene.skipTown(p)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .frame(maxHeight: 260)
+            }
+            HStack {
+                Spacer()
+                SGSButton(title: "Stay and face the raid", ghost: true, a11y: "prestige-stay",
+                          hint: "Normal raid consequences: half your parts + 25% cash fine") {
+                    scene.prestigeStay()
+                }
+            }
+        }
+        .padding(20)
+        .foregroundStyle(Color.sgsText)
     }
 
     // MARK: cop modal (presented as a true .sheet)

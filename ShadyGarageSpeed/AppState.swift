@@ -333,6 +333,20 @@ final class AppState: ObservableObject {
         raceScene.challengeIndex = nil
         raceScene.trackIndex = i
         raceScene.reversed = trackReversed.contains(GameState.tracks[i].id) // #20
+        raceScene.dailyRun = nil // normal race — never inherits the daily combo
+        phase = .race
+        raceScene.startRun()
+    }
+
+    /// #7 daily challenge: seeded track+direction+TOD+weather for today.
+    func startDailyRun() {
+        let d = GameState.dailyChallenge()
+        showTrackSheet = false
+        raceChallenge = nil
+        raceScene.challengeIndex = nil
+        raceScene.trackIndex = d.trackIndex
+        raceScene.reversed = d.reversed
+        raceScene.dailyRun = d
         phase = .race
         raceScene.startRun()
     }
@@ -346,6 +360,7 @@ final class AppState: ObservableObject {
         raceScene.challengeIndex = pos
         raceScene.trackIndex = 0
         raceScene.reversed = false // #20 rivals race the classic direction
+        raceScene.dailyRun = nil
         phase = .race
         raceScene.startRun()
     }
@@ -402,6 +417,34 @@ final class AppState: ObservableObject {
         if let i = args.firstIndex(of: "-streak"), i + 1 < args.count,
            let n = Int(args[i + 1]) {
             game.cleanStreak = max(0, n) // #15 seed for tests/screenshots
+        }
+        if let i = args.firstIndex(of: "-chassis"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            game.car.chassis = min(4, max(1, n)) // screenshot: L4 underglow/widebody
+        }
+        if args.contains("-fitall") {
+            // screenshot: install the best available part of every type
+            for t in GameState.partTypes {
+                if let best = game.inventory.filter({ $0.type == t }).max(by: { $0.tier < $1.tier }) {
+                    game.car.parts[t] = best
+                    game.inventory.removeAll { $0.id == best.id }
+                }
+            }
+        }
+        if let i = args.firstIndex(of: "-customertier"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            game.forcedCustomerTier = min(4, max(1, n)) // screenshot: rim tiers
+        }
+        if let i = args.firstIndex(of: "-raids"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            game.stats.raids = max(0, n) // screenshot: prestige offer needs ≥1 raid
+        }
+        if args.contains("-legend") {
+            game.legend = true; game.ladder = 4 // screenshot: rematch rows
+        }
+        if let i = args.firstIndex(of: "-rematch"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            for pos in 0..<4 { game.rematch[String(pos)] = max(0, n) } // ⭐ rows
         }
         // #20 pre-flip every track card (and the debug race) — screenshots
         if args.contains("-reverse") { trackReversed = Set(GameState.tracks.map(\.id)) }

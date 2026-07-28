@@ -6,6 +6,7 @@ struct TrackSelectSheet: View {
     @EnvironmentObject var app: AppState
     @ObservedObject var game: GameState
     @Environment(\.dismiss) private var dismiss
+    private static let todNames = ["Day", "Sunset", "Night"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -15,6 +16,35 @@ struct TrackSelectSheet: View {
                 Spacer()
                 SGSButton(title: "Close", ghost: true, small: true, a11y: "track-close") { dismiss() }
             }
+
+            // #7 daily challenge card (deterministic per date)
+            let dc = GameState.dailyChallenge()
+            let doneToday = app.game.dailyChallengeDate == todayKey()
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("📅 Daily Run\(doneToday ? " ✓" : "")")
+                        .font(sgsFont(15, .bold))
+                    Text("\(GameState.tracks[dc.trackIndex].name)\(dc.reversed ? " ⇄" : "") · \(Self.todNames[dc.tod]) · \(dc.wx.uppercased())")
+                        .font(sgsFont(12))
+                        .foregroundStyle(Color.sgsMuted)
+                    Text(doneToday ? "bonus claimed today" : "+$200 · +$100 under \(String(format: "%.1f", dc.par * 1.05))s")
+                        .font(sgsFont(12, .semibold))
+                        .foregroundStyle(Color.sgsCyan)
+                }
+                Spacer()
+                SGSButton(title: "Race", small: true, a11y: "daily-run",
+                          hint: "Race today's seeded challenge") {
+                    dismiss()
+                    app.startDailyRun()
+                }
+            }
+            .padding(10)
+            .background(Color.sgsAccent.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.sgsAccent.opacity(0.35), lineWidth: 1))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("daily-card")
 
             ForEach(GameState.tracks.indices, id: \.self) { i in
                 let t = GameState.tracks[i]

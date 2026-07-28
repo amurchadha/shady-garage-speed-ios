@@ -68,7 +68,8 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(waitLabel(app.staticTexts["build-cash"], contains: "$596", timeout: 3),
                       "cash should be 200 + 396, got \(app.staticTexts["build-cash"].label)")
         XCTAssertFalse(app.buttons["contract-fulfill"].exists, "contract should be consumed")
-        XCTAssertFalse(app.buttons["install-5"].exists, "one of the 6 seeded parts should be consumed")
+        // 8 seeded t3 parts (#8/#9 added nitrous + ecu); fulfilling drops one → install-7 gone
+        XCTAssertFalse(app.buttons["install-7"].exists, "one of the 8 seeded parts should be consumed")
         XCTAssertTrue(app.buttons["install-0"].exists)
         shot("contract_fulfilled")
     }
@@ -209,8 +210,8 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(speed.waitForExistence(timeout: 5))
         XCTAssertEqual(speed.label, "27") // L1 chassis base
         shot("build_before_install")
-        // #68 tier/type sort: body kit 0, ENGINE 1 among the six seeded t3 parts
-        app.buttons["install-1"].tap() // seeded engine, tier 3 (+11 speed/tier)
+        // #68 tier/type sort among the eight seeded t3 parts: body kit 0, ecu 1, ENGINE 2
+        app.buttons["install-2"].tap() // seeded engine, tier 3 (+11 speed/tier)
         XCTAssertEqual(speed.label, "60")
         shot("build_after_install")
     }
@@ -521,6 +522,72 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         // next boot: stamped — no card
         launch([])
         XCTAssertFalse(card.waitForExistence(timeout: 4), "what's-new must not reappear after stamping")
+    }
+
+    /// #10 paint shop: swatch → persisted paint across a relaunch.
+    func testPaintPersists() throws {
+        launch(["-reset", "-phase", "build"])
+        let blue = app.buttons["paint-3B82F6"]
+        XCTAssertTrue(blue.waitForExistence(timeout: 8))
+        blue.tap()
+        XCTAssertEqual(blue.value as? String, "selected", "swatch should read selected after the tap")
+        app.terminate()
+
+        launch(["-phase", "build"]) // NO -reset — paint must survive
+        XCTAssertTrue(blue.waitForExistence(timeout: 8))
+        XCTAssertEqual(blue.value as? String, "selected", "paint must persist across a relaunch")
+        shot("paint_shop")
+    }
+
+    /// #7 daily challenge: card matches the mulberry32-of-date algorithm exactly,
+    /// and finishing the daily stamps the once-per-day bonus line on results.
+    func testDailyChallengeDeterminism() throws {
+        // expected combo, computed independently (same algorithm as the web)
+        let exp = expectedDailyCombo()
+        launch(["-reset", "-phase", "garage", "-notut", "-instantfinish"])
+        app.buttons["nav-race"].tap()
+        let card = app.otherElements["daily-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8), "daily card should top the track sheet")
+        XCTAssertTrue(app.staticTexts[exp.headline].waitForExistence(timeout: 3),
+                      "daily card should read \"\(exp.headline)\"")
+        shot("daily_card")
+
+        // race the daily → results carry the DAILY RUN ✓ line (and the once-per-day stamp)
+        app.buttons["daily-run"].tap()
+        XCTAssertTrue(app.staticTexts["race-timer"].waitForExistence(timeout: 5), "race should start")
+        let dailyLine = app.staticTexts["results-daily"]
+        XCTAssertTrue(dailyLine.waitForExistence(timeout: 25), "results should show DAILY RUN ✓")
+        XCTAssertTrue(dailyLine.label.contains("DAILY RUN ✓"), "got \(dailyLine.label)")
+        shot("daily_results")
+    }
+
+    // MARK: daily-combo reference implementation (mirrors js/data.js dailyChallenge)
+
+    private func expectedDailyCombo() -> (headline: String, trackIdx: Int) {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        let key = fmt.string(from: Date())
+        var a = fnv1a("dailyrun:" + key)
+        func r() -> Double {
+            a = a &+ 0x6D2B79F5
+            var t = (a ^ (a >> 15)) &* (1 | a)
+            t = (t &+ ((t ^ (t >> 7)) &* (61 | t))) ^ t
+            return Double(t ^ (t >> 14)) / 4294967296.0
+        }
+        let trackIdx = Int(r() * 2)
+        let rev = r() < 0.5
+        let tod = Int(r() * 3)
+        let w = r()
+        let wx = w < 0.35 ? "RAIN" : w < 0.55 ? "FOG" : "CLEAR"
+        let name = trackIdx == 0 ? "Meadow Loop" : "Figure-8 Ridge"
+        let tods = ["Day", "Sunset", "Night"]
+        return ("\(name)\(rev ? " ⇄" : "") · \(tods[tod]) · \(wx)", trackIdx)
+    }
+
+    private func fnv1a(_ s: String) -> UInt32 {
+        var h: UInt32 = 2166136261
+        for u in s.utf16 { h = (h ^ UInt32(u)) &* 16777619 }
+        return h
     }
 
     /// landscape: garage HUD + race controls must fit sideways. Runs LAST (name sorts

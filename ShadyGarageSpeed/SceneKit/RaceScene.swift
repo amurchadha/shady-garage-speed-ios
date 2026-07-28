@@ -29,6 +29,9 @@ struct FinishData {
     var speed = 0
     var accel = 0
     var handling = 0
+    /// #7 daily-run result fields (📅 DAILY RUN ✓ line on results).
+    var daily = false
+    var dailyBonus = 0
 }
 
 final class RaceScene: SceneController {
@@ -203,6 +206,13 @@ final class RaceScene: SceneController {
     private var camPos = SCNVector3(0, 4.2, -10)
     private var camFov: CGFloat = 62
     private var nosMeter: Float = 100
+    /// #8 Nitrous Kit tier → capacity 100+25t / regen 8+4t (tier 0 = stock).
+    private var nosMax: Float = 100
+    private var nosRegenRate: Float = 8
+    /// #9 ECU tier → launch-strong accel taper (0 = stock).
+    private var ecuTier = 0
+    /// #7 daily challenge combo for this run (nil = normal race).
+    var dailyRun: GameState.DailyChallenge? = nil
     private var boosting = false
     private var nosLockout = false   // hit empty while held → locked until released & >15
     private var wallCooldown: Double = 0
@@ -816,10 +826,15 @@ final class RaceScene: SceneController {
     // MARK: - conditions
 
     private func applyConditions() {
-        todIndex = forcedTOD ?? (game.raceCount % 3)
+        // #7 daily challenge forces its seeded TOD + weather (debug -tod/-wx only
+        // apply to normal races)
+        todIndex = dailyRun?.tod ?? forcedTOD ?? (game.raceCount % 3)
         // weather: rain 30% · fog 20% · clear 50% (-wx rain|fog|clear forces it)
         let wx = forcedWX ?? (forcedRain == true ? "rain" : forcedRain == false ? "clear" : nil)
-        if let wx {
+        if let dr = dailyRun {
+            raining = dr.wx == "rain"
+            foggy = dr.wx == "fog"
+        } else if let wx {
             raining = wx == "rain"
             foggy = wx == "fog"
         } else {
@@ -884,7 +899,7 @@ final class RaceScene: SceneController {
         ghost?.removeFromParentNode()
         ghost = nil
         applyConditions()
-        let car = CarFactory.makeCustomCar(carState: game.car)
+        let car = CarFactory.makeCustomCar(carState: game.car, paint: game.paint) // #10
         scene.rootNode.addChildNode(car)
         carMesh = car
         wheels = (0..<4).compactMap { CarFactory.find(car, "tire\($0)") }
@@ -930,7 +945,9 @@ final class RaceScene: SceneController {
         // these (e.g. Race Again during the finish roll)
         stateLock.lock()
         // pink-slip ghost: paces the rival's lap time along the centerline
-        if let ci = challengeIndex, let rival = GameState.ladderRival(ci) {
+        // (#6 rematch-adjusted time via rivalFor)
+        if let ci = challengeIndex, GameState.ladderRival(ci) != nil {
+            let rival = game.rivalFor(ci)
             let g = CarFactory.makeCar(color: 0x22d3ee)
             g.opacity = 0.45
             g.position = SCNVector3(centers[0].x, 0, centers[0].y)
@@ -940,6 +957,11 @@ final class RaceScene: SceneController {
             ghostTime = rival.time
         }
         stats = game.computeStats()
+        // #8 nitrous tier → NOS capacity/regen; #9 ECU tier → launch taper
+        let nitT = game.car.parts.nitrous?.tier ?? 0
+        nosMax = Float(GameState.nosCap(nitT))
+        nosRegenRate = GameState.nosRegen(nitT)
+        ecuTier = game.car.parts.ecu?.tier ?? 0
         maxSpd = 26 + Float(stats.speed) * 0.6
         pos = centers[0]
         yaw = startYaw
@@ -947,7 +969,7 @@ final class RaceScene: SceneController {
         lastIdx = 0; prevIdx = 0; lastFrac = 0; passedMid = false
         offTrack = false; wasOff = false
         inputUp = false; inputDown = false; inputLeft = false; inputRight = false; inputNos = false
-        nosMeter = 100
+        nosMeter = nosMax // #8 full tank (capacity scales with the Nitrous Kit tier)
         boosting = false
         nosLockout = false
         wallCooldown = 0
@@ -1100,8 +1122,10 @@ final class RaceScene: SceneController {
         let reward = challengeIndex == nil ? Int((Double(value) * 0.12 * (hardcore ? 1.5 : 1)).rounded()) : 0
 
         // pink-slip resolution — pure computation here; rewards applied on main
+        // (#6 rematch-adjusted time + purse via rivalFor)
         var challengeResult: ChallengeResult? = nil
-        if let ci = challengeIndex, let rival = GameState.ladderRival(ci) {
+        if let ci = challengeIndex, GameState.ladderRival(ci) != nil {
+            let rival = game.rivalFor(ci)
             let target = ladderWin ? 999.0 : rival.time // -ladderwin debug: auto-win
             let win = lap < target
             let becameLegend = win && ci + 1 >= 4 && !game.legend && game.ladder < 4
@@ -1112,6 +1136,13 @@ final class RaceScene: SceneController {
         }
         finishData = FinishData(lap: lap, best: best, value: value, reward: reward,
                                 newBest: newBest, challenge: challengeResult)
+        // #7 daily-run bonus: $200 flat + $100 under par×1.05, once per day
+        var dailyBonus = 0
+        if let dr = dailyRun, game.dailyChallengeDate != todayKey() {
+            dailyBonus = 200 + (lap < dr.par * 1.05 ? 100 : 0)
+        }
+        finishData?.daily = dailyRun != nil
+        finishData?.dailyBonus = dailyBonus
         // #71/#75 placement vs the ladder rivals + display names
         var boardTimes = GameState.rivals.map(\.time)
         boardTimes.append(lap)
@@ -1159,6 +1190,11 @@ final class RaceScene: SceneController {
                 game.cash += reward
                 game.addEarnings(reward) // #74 lifetime earnings
             }
+            if dailyBonus > 0 { // #7 once per day
+                game.cash += dailyBonus
+                game.addEarnings(dailyBonus)
+                game.dailyChallengeDate = todayKey()
+            }
             if let ci = self.challengeIndex, let ch = challengeResult {
                 if ch.win {
                     game.ladder = max(game.ladder, ci + 1)
@@ -1168,6 +1204,8 @@ final class RaceScene: SceneController {
                     if ch.prizeTier == 4 { game.checkAchievements(.elitePart) } // #73 first Elite
                     game.checkAchievements(.pinkslip) // #73 Pink Slippery
                     if game.ladder >= 4 { game.legend = true }
+                    // #6 post-legend: every rival win escalates their rematch tier
+                    if game.legend { game.rematch[String(ci)] = (game.rematch[String(ci)] ?? 0) + 1 }
                     if game.legend { game.checkAchievements(.legend) } // #73 Street Legend
                     let prizeName = "\(GameState.tierNames[ch.prizeTier]) \(GameState.partLabels[ch.prizeType] ?? ch.prizeType)"
                     toasts.push("Won \(ch.name)'s \(prizeName) + $\(ch.purse)!", .good)
@@ -1320,8 +1358,8 @@ final class RaceScene: SceneController {
             if !nowBoosting && boosting { sfx.nos(false); Haptics.nosRumble(false) }
             boosting = nowBoosting
             if boosting { nosMeter = max(0, nosMeter - 30 * Float(dt)) }
-            else { nosMeter = min(100, nosMeter + 8 * Float(dt)) }
-            if boosting { Haptics.nosRumbleLevel(nosMeter / 100) } // rumble tracks the tank
+            else { nosMeter = min(nosMax, nosMeter + nosRegenRate * Float(dt)) } // #8 tier regen
+            if boosting { Haptics.nosRumbleLevel(nosMeter / nosMax) } // rumble tracks the tank
             if inputNos && nosMeter <= 0 { nosLockout = true }
             if nosLockout && !inputNos && nosMeter > 15 { nosLockout = false }
             sfx.setEngineRPM(Double(abs(speed) / maxSpd))
@@ -1334,8 +1372,14 @@ final class RaceScene: SceneController {
                 }
             }
 
-            let accelRate = (10 + Float(stats.accel) * 0.28) * (boosting ? 1.5 : 1)
+            // #9 ECU: launch-strong accel curve, floored at 35% of the ECU peak
+            var accelRate = (10 + Float(stats.accel) * 0.28) * (boosting ? 1.5 : 1)
             let effMax = (offTrack ? maxSpd * 0.45 : maxSpd) * (boosting ? 1.35 : 1)
+            if ecuTier > 0 {
+                let peak = accelRate * (1 + 0.15 * Float(ecuTier))
+                let k = effMax > 0 ? min(1, abs(speed) / effMax) : 0
+                accelRate = max(peak * (1 - k), 0.35 * peak)
+            }
             let brakeDecel: Float = 30 * (raining ? 0.85 : 1)
             let grip: Float = raining ? 0.8 : 1
 
@@ -1638,13 +1682,23 @@ final class RaceScene: SceneController {
             confetti[i] = e
         }
 
+        // #12 underglow pulse (static under reduced motion)
+        if let lightNode = carMesh?.childNode(withName: "uglowLight", recursively: true) {
+            let t = CACurrentMediaTime()
+            let gk: Float = A11y.reduceMotion ? 1 : 0.8 + 0.2 * Float(sin(t * 2.4))
+            lightNode.light?.intensity = 400 * CGFloat(gk)
+            if let plane = carMesh?.childNode(withName: "uglowPlane", recursively: true) {
+                plane.opacity = CGFloat(0.28 * gk)
+            }
+        }
+
         // throttled HUD publish (30 Hz, main thread)
         publishT += dt
         if publishT >= 1.0 / 30 {
             publishT = 0
             let timerText = Self.fmtTime(raceT)
             let kmh = Int((abs(speed) * 3.4).rounded()) // round, not truncate
-            let nos = Int(nosMeter.rounded())
+            let nos = Int((nosMeter / nosMax * 100).rounded()) // HUD shows % of capacity (#8)
             let playerDot = mapPoint(pos)
             DispatchQueue.main.async {
                 self.raceTimerText = timerText

@@ -15,6 +15,27 @@ struct BuildView: View {
         ProcessInfo.processInfo.arguments.contains("-catalog") ? .catalog : .inventory
     /// #66 Pro/Elite sell confirmation (alert carries the fence price).
     @State private var confirmSell: Part? = nil
+    /// #10 hue slider position (°); a drag commits a custom paint.
+    @State private var hue: Double = 0
+
+    /// #10 swatches (web ui.js PAINTS) — the 9th "default" circle is chassis color.
+    private static let paints = [0xef4444, 0xf97316, 0xfacc15, 0x22c55e,
+                                 0x3b82f6, 0xa855f7, 0xf472b6, 0xf8fafc]
+
+    /// #10 hue → hex (web hslToHex: s 0.65, l 0.5).
+    private static func hslToHex(_ h: Double, s: Double = 0.65, l: Double = 0.5) -> Int {
+        func k(_ n: Double) -> Double { (n + h / 30).truncatingRemainder(dividingBy: 12) }
+        let a = s * min(l, 1 - l)
+        func f(_ n: Double) -> Double { l - a * max(-1, min(k(n) - 3, min(9 - k(n), 1))) }
+        return (Int((f(0) * 255).rounded()) << 16) | (Int((f(8) * 255).rounded()) << 8) | Int((f(4) * 255).rounded())
+    }
+
+    /// #10 persist + rebuild (cheap; the bay shows it instantly).
+    private func setPaint(_ hex: Int?) {
+        game.paint = hex
+        game.save()
+        scene.refreshCustomCar()
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -93,6 +114,13 @@ struct BuildView: View {
                         StatBar(name: "Speed", value: game.computeStats().speed)
                         StatBar(name: "Accel", value: game.computeStats().accel)
                         StatBar(name: "Handling", value: game.computeStats().handling)
+                        // #8 nitrous mini-stat: tank capacity + regen from the kit tier
+                        let nitT = game.car.parts.nitrous?.tier ?? 0
+                        Text("🚀 NOS \(GameState.nosCap(nitT)) tank · regen \(Int(GameState.nosRegen(nitT)))/s")
+                            .font(sgsFont(12))
+                            .foregroundStyle(Color.sgsMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("nos-stat")
                     }
 
                     // contracts board: one active order at a time
@@ -152,6 +180,72 @@ struct BuildView: View {
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                         ForEach(GameState.partTypes, id: \.self) { type in
                             slot(type)
+                        }
+                    }
+
+                    // #4 garage levels: Second Lift ($2,500) → Showroom Floor ($6,000)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Garage: **Lv\(game.garageLevel)**")
+                                .font(sgsFont(14))
+                            if let def = GameState.garageLevels[game.garageLevel + 1] {
+                                Text("\(def.name) — \(def.note)")
+                                    .font(sgsFont(11))
+                                    .foregroundStyle(Color.sgsMuted)
+                            }
+                        }
+                        Spacer()
+                        if let def = GameState.garageLevels[game.garageLevel + 1] {
+                            SGSButton(title: "Build $\(def.cost)", small: true,
+                                      disabled: game.cash < def.cost, a11y: "garage-upgrade",
+                                      hint: def.note) {
+                                let r = game.buyGarageLevel()
+                                scene.toasts.push(r.msg, r.ok ? .good : .bad)
+                                if r.ok { app.garageScene.applyGarageLevel() }
+                            }
+                        } else {
+                            SGSButton(title: "MAX", small: true, disabled: true, a11y: "garage-upgrade") {}
+                        }
+                    }
+
+                    // #10 paint shop: 8 swatches + hue slider (nil = chassis default)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Paint shop")
+                            .font(sgsFont(13, .bold))
+                        HStack(spacing: 8) {
+                            ForEach(Self.paints, id: \.self) { hex in
+                                Circle()
+                                    .fill(Color(rgb: hex))
+                                    .frame(width: 26, height: 26)
+                                    .overlay(Circle().stroke(Color.white.opacity(game.paint == hex ? 0.9 : 0.15),
+                                                             lineWidth: game.paint == hex ? 2.5 : 1))
+                                    .onTapGesture { setPaint(hex) }
+                                    .accessibilityLabel("Paint \(String(format: "#%06X", hex))")
+                                    .accessibilityValue(game.paint == hex ? "selected" : "")
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityIdentifier("paint-\(String(format: "%06X", hex))")
+                            }
+                            Circle()
+                                .fill(Color.sgsCard2)
+                                .frame(width: 26, height: 26)
+                                .overlay(Text("A").font(sgsFont(11, .bold)).foregroundStyle(Color.sgsMuted))
+                                .overlay(Circle().stroke(Color.white.opacity(game.paint == nil ? 0.9 : 0.15),
+                                                         lineWidth: game.paint == nil ? 2.5 : 1))
+                                .onTapGesture { setPaint(nil) }
+                                .accessibilityLabel("Paint: chassis default")
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityIdentifier("paint-default")
+                        }
+                        HStack(spacing: 8) {
+                            Text("Hue")
+                                .font(sgsFont(11))
+                                .foregroundStyle(Color.sgsMuted)
+                            Slider(value: $hue, in: 0...359)
+                                .accessibilityIdentifier("paint-hue")
+                                .onChange(of: hue) { _, h in setPaint(Self.hslToHex(h)) }
+                            if let p = game.paint {
+                                Circle().fill(Color(rgb: p)).frame(width: 20, height: 20)
+                            }
                         }
                     }
 

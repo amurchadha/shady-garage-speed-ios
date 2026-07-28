@@ -68,6 +68,15 @@ struct ResultsView: View {
                 }
 
                 VStack(spacing: 6) {
+                    if res.daily {
+                        // #7 daily-run stamp
+                        Text("📅 DAILY RUN ✓" + (res.dailyBonus > 0
+                            ? " — bonus +$\(res.dailyBonus)"
+                            : " (bonus already claimed today)"))
+                            .font(sgsFont(13, .black))
+                            .foregroundStyle(Color.sgsAccent)
+                            .accessibilityIdentifier("results-daily")
+                    }
                     resRow("Lap time", RaceScene.fmtTime(res.lap), Color.sgsText)
                     resRow("Best lap", RaceScene.fmtTime(res.best), Color.sgsText)
                     if res.challenge == nil {

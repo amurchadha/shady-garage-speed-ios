@@ -356,7 +356,12 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         // heat consequences trigger on arrival, before the next car pulls in
         if game.heat >= 100 {
-            raid()
+            // #3 from the second raid onward, offer the skip-town exit ramp instead
+            if game.stats.raids >= 1 {
+                showPrestige = true
+                return
+            }
+            raid() // …then business as usual (fall through to the next customer)
         } else if game.heat >= 70 && (forceCop || Double.random(in: 0..<1) < 0.35) {
             copVisit()
             return // modal callbacks continue the flow
@@ -385,6 +390,167 @@ final class GarageScene: SceneController {
         } else {
             toasts.push("🚨 RAID! Cops found no parts, but fined you $\(fine).", .warn)
         }
+    }
+
+    // MARK: #3 Skip Town prestige (from the second raid onward)
+
+    /// Prestige offer pending (heat 100 with ≥1 prior raid) — GarageView shows the modal.
+    @Published var showPrestige = false
+
+    /// Fitted parts the player may carry to the next town (choose ONE).
+    var prestigeKeepOptions: [Part] {
+        GameState.partTypes.compactMap { game.car.parts[$0] }
+    }
+
+    /// Stay: eat the normal raid consequences, business resumes.
+    func prestigeStay() {
+        stateLock.lock()
+        showPrestige = false
+        stateLock.unlock()
+        raid()
+        startNextCustomer()
+    }
+
+    /// Skip Town: keep ONE installed part + legend/meta; economy resets; ⭐N+1.
+    func skipTown(_ kept: Part?) {
+        stateLock.lock()
+        showPrestige = false
+        let next = game.prestige + 1
+        // legend + lifetime meta survive the move (web garage.js skipTown)
+        let carry = (name: game.playerName, charIdx: game.characterIndex,
+                     legend: game.legend, achievements: game.achievements, stats: game.stats,
+                     hof: game.hof, bestLaps: game.bestLaps, bestLap: game.bestLap,
+                     paint: game.paint, daily: game.daily, rematch: game.rematch,
+                     tutorialSeen: game.tutorialSeen, heatHintShown: game.heatHintShown,
+                     copHintShown: game.copHintShown, lastSeenVersion: game.lastSeenVersion,
+                     dailyChallengeDate: game.dailyChallengeDate)
+        game.newGame(carry.name, carry.charIdx) // wipe to Day 1 defaults + save
+        game.legend = carry.legend
+        game.achievements = carry.achievements
+        game.stats = carry.stats
+        game.hof = carry.hof
+        game.bestLaps = carry.bestLaps
+        game.bestLap = carry.bestLap
+        game.paint = carry.paint
+        game.daily = carry.daily
+        game.rematch = carry.rematch
+        game.tutorialSeen = carry.tutorialSeen
+        game.heatHintShown = carry.heatHintShown
+        game.copHintShown = carry.copHintShown
+        game.lastSeenVersion = carry.lastSeenVersion
+        game.dailyChallengeDate = carry.dailyChallengeDate
+        game.prestige = next
+        game.ladder = carry.legend ? 4 : 0
+        if let kept { game.car.parts[kept.type] = kept } // the ONE part you carried out
+        game.heat = 0
+        game.garageLevel = 1 // new town, bare garage
+        game.save()
+        applyGarageLevel()
+        stateLock.unlock()
+        sfx.fanfare()
+        toasts.push("Welcome to a new town! ⭐\(next) prestige — payments ×\(String(format: "%.1f", 1 + 0.5 * Double(min(3, next)))), richer customers, heat 0.", .good)
+        startNextCustomer()
+    }
+
+    // MARK: #4 garage-level visuals (rebuilt on enter + purchase)
+
+    private var levelGroup: SCNNode?
+
+    func applyGarageLevel() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        levelGroup?.removeFromParentNode()
+        levelGroup = nil
+        guard game.garageLevel >= 2 else { return }
+        let g = SCNNode()
+        // Second Lift: a second raised platform off to the right
+        g.addChildNode(boxNode(0.5, 2.4, 0.5, UIColor(rgb: 0xf59e0b), 6.4, 1.2, -4))
+        g.addChildNode(boxNode(0.5, 2.4, 0.5, UIColor(rgb: 0xf59e0b), 9.4, 1.2, -4))
+        g.addChildNode(boxNode(3.9, 0.18, 2.6, UIColor(rgb: 0x6b7280), 7.9, 2.42, -4))
+        if game.garageLevel >= 3 {
+            // Showroom Floor: bigger slab + warm showroom string lights
+            let slabGeo = SCNPlane(width: 46, height: 34)
+            slabGeo.materials = [FlatMat.lit(UIColor(rgb: 0x232a35))]
+            let slab = SCNNode(geometry: slabGeo)
+            slab.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+            slab.position = SCNVector3(0, 0.045, 0)
+            g.addChildNode(slab)
+            for i in 0..<3 {
+                let l = SCNLight()
+                l.type = .omni
+                l.color = UIColor(rgb: 0xffd9a0)
+                l.intensity = 500
+                l.attenuationStartDistance = 1
+                l.attenuationEndDistance = 14
+                let ln = SCNNode()
+                ln.light = l
+                ln.position = SCNVector3(Float(-6 + i * 6), 5.2, -2)
+                g.addChildNode(ln)
+                g.addChildNode(boxNode(0.14, 0.14, 0.14, UIColor(rgb: 0xffe9b0),
+                                       CGFloat(-6 + i * 6), 5.2, -2))
+            }
+        }
+        scene.rootNode.addChildNode(g)
+        levelGroup = g
+    }
+
+    // MARK: #5 second service bay (garageLevel ≥ 2)
+
+    private var waitingCust: Customer? = nil
+    private var waitingCar: SCNNode? = nil
+    /// A second customer is parked outside — GarageView shows Serve Next / Break.
+    @Published private(set) var nextWaiting = false
+
+    private func maybeQueueNext() {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        guard game.garageLevel >= 2, waitingCust == nil else { return }
+        let chance = game.garageLevel >= 3 ? 0.6 : 0.4
+        guard Double.random(in: 0..<1) < chance else { return }
+        let c = game.generateCustomer()
+        game.stats.archSeen[c.archetype, default: 0] += 1
+        let car = CarFactory.makeCar(color: c.color, bodyStyle: c.bodyStyle,
+                                     tiresTier: c.parts.first { $0.type == "tires" }?.tier ?? 1)
+        car.position = SCNVector3(14, 0, 16)
+        car.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
+        scene.rootNode.addChildNode(car)
+        waitingCust = c
+        waitingCar = car
+        DispatchQueue.main.async { self.nextWaiting = true }
+    }
+
+    private func clearWaiting() {
+        waitingCar?.removeFromParentNode()
+        waitingCar = nil
+        waitingCust = nil
+        DispatchQueue.main.async { self.nextWaiting = false }
+    }
+
+    /// Serve the waiting customer: short pull-in straight into inspection.
+    func serveNext() {
+        stateLock.lock()
+        guard let c = waitingCust, let car = waitingCar else { stateLock.unlock(); return }
+        if game.heat >= 70 { // cops take priority
+            stateLock.unlock()
+            clearWaiting()
+            startNextCustomer()
+            return
+        }
+        waitingCust = nil
+        waitingCar = nil
+        DispatchQueue.main.async { self.nextWaiting = false }
+        beginJob(c, car)
+        drive = Tween(car: car, steps: [GStep(to: SCNVector3(0, 0, -4.5), yaw: 0, dur: 0.7)],
+                      onDone: { [weak self] in self?.arrive() })
+        stateLock.unlock()
+    }
+
+    /// Send the waiting customer away; normal flow resumes.
+    func breakNext() {
+        stateLock.lock()
+        clearWaiting()
+        stateLock.unlock()
+        startNextCustomer()
     }
 
     private func copVisit() {
@@ -428,7 +594,6 @@ final class GarageScene: SceneController {
         stateLock.lock()
         defer { stateLock.unlock() }
         let c = game.generateCustomer()
-        customer = c
         game.stats.archSeen[c.archetype, default: 0] += 1 // #74 favorite archetype
         // #17 from Day 10 the next customer inherits 20% of the last one's
         // ending suspicion (cap 30); one-time toast, nothing persisted.
@@ -439,10 +604,22 @@ final class GarageScene: SceneController {
                 toasts.push("Word travels. Customers are warier now.", .warn)
             }
         }
-        let car = CarFactory.makeCar(color: c.color, bodyStyle: c.bodyStyle)
+        let car = CarFactory.makeCar(color: c.color, bodyStyle: c.bodyStyle,
+                                     tiresTier: c.parts.first { $0.type == "tires" }?.tier ?? 1) // #11
         car.position = SCNVector3(38, 0, 24)
         car.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
         scene.rootNode.addChildNode(car)
+        beginJob(c, car)
+        drive = Tween(car: car, steps: entranceSteps(), onDone: { [weak self] in
+            self?.arrive()
+        })
+    }
+
+    /// Shared job setup for a freshly generated customer (drive-in) or a queued
+    /// second-bay customer (short pull-in): state, counters, owner avatar.
+    /// archSeen is counted by the CALLER (spawn/queue time, web parity).
+    private func beginJob(_ c: Customer, _ car: SCNNode) {
+        customer = c
         customerCar = car
         cachePartMats()
         customerWheels = (0..<4).compactMap { CarFactory.find(car, "tire\($0)") }
@@ -465,20 +642,22 @@ final class GarageScene: SceneController {
         nextWatchT = elapsed + Double.random(in: 4...8)
         watchUntilT = 0
         if ownerWatching { DispatchQueue.main.async { self.ownerWatching = false } }
-        drive = Tween(car: car, steps: entranceSteps(), onDone: { [weak self] in
-            guard let self else { return }
-            self.inspectStartT = self.elapsed
-            let archetype = c.archetype
-            DispatchQueue.main.async {
-                self.jobState = "inspect"
-                self.prompt = "Tap a part on the car, or use the job panel."
-                if archetype == "rushed" {
-                    self.rushedRemaining = Int(Self.rushedWindow)
-                }
+    }
+
+    /// Car is parked: inspection opens (shared by drive-in + second-bay pull-in).
+    private func arrive() {
+        guard let c = customer else { return }
+        inspectStartT = elapsed
+        let archetype = c.archetype
+        DispatchQueue.main.async {
+            self.jobState = "inspect"
+            self.prompt = "Tap a part on the car, or use the job panel."
+            if archetype == "rushed" {
+                self.rushedRemaining = Int(Self.rushedWindow)
             }
-            if c.golden { self.sfx.fanfare() } // golden customer arrival fanfare
-            self.say(archetype, 3) // arrival line over the owner
-        })
+        }
+        if c.golden { sfx.fanfare() } // golden customer arrival fanfare
+        say(archetype, 3) // arrival line over the owner
     }
 
     private func driveOut(_ happy: Bool) {
@@ -757,6 +936,7 @@ final class GarageScene: SceneController {
         // rushed customers pay ×1.5 only if the job finished inside the 45s window
         let onTime = c.archetype != "rushed" || (elapsed - inspectStartT) <= Self.rushedWindow
         var mult = game.payMult * game.archPayMult(c.archetype, onTime: onTime) * game.diffMods.pay
+        mult *= game.garagePayMult * game.prestigePayMult // #4 garage levels + #3 prestige
         if c.golden { mult *= 3 } // golden customer pays triple
         // #15 clean-job streak: zero steals keeps it alive; every 3rd clean job +25%
         if jobSteals == 0 {
@@ -788,6 +968,7 @@ final class GarageScene: SceneController {
         toasts.pushCash("+$\(payment)") // floating cash pop
         publishLugnut()
         driveOut(true)
+        maybeQueueNext() // #5 a second customer may already be waiting (garageLevel ≥ 2)
     }
 
     // MARK: - phase interface
@@ -806,6 +987,7 @@ final class GarageScene: SceneController {
         stateLock.lock()
         defer { stateLock.unlock() }
         mode = .play
+        applyGarageLevel() // #4 Second Lift / Showroom visuals for the current level
         guard customer == nil, !showCopModal else {
             if jobState == "inspect" {
                 prompt = "Tap a part on the car, or use the job panel."

@@ -27,6 +27,8 @@ struct CarParts: Codable, Equatable {
     var tires: Part?
     var suspension: Part?
     var bodykit: Part?
+    var nitrous: Part?
+    var ecu: Part?
 
     subscript(type: String) -> Part? {
         get {
@@ -37,6 +39,8 @@ struct CarParts: Codable, Equatable {
             case "tires": return tires
             case "suspension": return suspension
             case "bodykit": return bodykit
+            case "nitrous": return nitrous
+            case "ecu": return ecu
             default: return nil
             }
         }
@@ -48,6 +52,8 @@ struct CarParts: Codable, Equatable {
             case "tires": tires = newValue
             case "suspension": suspension = newValue
             case "bodykit": bodykit = newValue
+            case "nitrous": nitrous = newValue
+            case "ecu": ecu = newValue
             default: break
             }
         }
@@ -130,6 +136,84 @@ final class GameState: ObservableObject {
     @Published var daily = DailyBests()
     /// #80 last version the What's-New card was dismissed on (persisted).
     @Published var lastSeenVersion = ""
+    /// #3 skip-town prestige count (pay ×(1+0.5N), better tier odds; ⭐N badge).
+    @Published var prestige = 0
+    /// #4 garage upgrade level 1-3 (Second Lift / Showroom Floor).
+    @Published var garageLevel = 1
+    /// #6 per-rival rematch tiers {rivalIndex: tier} (post-legend escalation).
+    @Published var rematch: [String: Int] = [:]
+    /// #7 last day the daily-run bonus was claimed (todayKey format).
+    @Published var dailyChallengeDate = ""
+    /// #10 custom car body color (nil = chassis default).
+    @Published var paint: Int? = nil
+
+    // MARK: #3/#4 pay & odds multipliers
+
+    /// #3 prestige: payments ×(1+0.5N), capped at N=3 for the multiplier.
+    var prestigePayMult: Double { 1 + 0.5 * Double(min(3, prestige)) }
+    /// #4 garage levels: L2 +5%, L3 +10% payments.
+    var garagePayMult: Double { 1 + (garageLevel >= 2 ? 0.05 : 0) + (garageLevel >= 3 ? 0.10 : 0) }
+    /// #4 L3 showroom: golden customers 5% (else 3%).
+    func goldenChance() -> Double { garageLevel >= 3 ? 0.05 : 0.03 }
+
+    struct GarageLevelDef { let name: String; let cost: Int; let note: String }
+    static let garageLevels: [Int: GarageLevelDef] = [
+        2: GarageLevelDef(name: "Second Lift", cost: 2500,
+                          note: "+5% payments · second bay queue"),
+        3: GarageLevelDef(name: "Showroom Floor", cost: 6000,
+                          note: "+10% payments · golden customers 5% · snappier queue"),
+    ]
+
+    /// #4 buy the next garage level (L2 → L3).
+    @discardableResult
+    func buyGarageLevel() -> (ok: Bool, msg: String) {
+        guard let def = GameState.garageLevels[garageLevel + 1] else {
+            return (false, "Garage is fully upgraded.")
+        }
+        guard cash >= def.cost else { return (false, "Not enough cash (need $\(def.cost))") }
+        cash -= def.cost
+        garageLevel += 1
+        save()
+        return (true, "\(def.name) built!")
+    }
+
+    // MARK: #6 rival rematches (post-legend)
+
+    /// Rematch-adjusted rival: time ×0.92ᵗ (floor classic par×0.75), purse ×1.5ᵗ.
+    func rivalFor(_ i: Int) -> Rival {
+        guard let base = GameState.ladderRival(i) else {
+            return Rival(name: "?", time: 999, prizeType: "engine", prizeTier: 1, purse: 0)
+        }
+        let t = rematch[String(i)] ?? 0
+        let floorT = GameState.tracks[0].par * 0.75
+        return Rival(name: base.name,
+                     time: max(base.time * pow(0.92, Double(t)), floorT),
+                     prizeType: base.prizeType, prizeTier: base.prizeTier,
+                     purse: Int((Double(base.purse) * pow(1.5, Double(t))).rounded()))
+    }
+    /// #6 rematch tier for the ladder row stars.
+    func rematchTier(_ i: Int) -> Int { rematch[String(i)] ?? 0 }
+
+    // MARK: #7 daily challenge (deterministic per date; RNG shared with #72)
+
+    struct DailyChallenge {
+        let trackIndex: Int
+        let reversed: Bool
+        let tod: Int   // 0 day · 1 sunset · 2 night
+        let wx: String // rain | fog | clear
+        let par: Double
+    }
+
+    static func dailyChallenge(for d: Date = Date()) -> DailyChallenge {
+        let r = mulberry32(hashStr("dailyrun:" + todayKey(d)))
+        let trackIdx = Int(r() * 2) // 0 classic · 1 ridge
+        let rev = r() < 0.5
+        let tod = Int(r() * 3)
+        let w = r()
+        let wx = w < 0.35 ? "rain" : w < 0.55 ? "fog" : "clear"
+        return DailyChallenge(trackIndex: trackIdx, reversed: rev, tod: tod, wx: wx,
+                              par: GameState.tracks[trackIdx].par + (rev ? 1 : 0))
+    }
 
     /// AppState wires this: unlock → toast + fanfare.
     var onAchievement: ((AchievementDef) -> Void)?
@@ -221,12 +305,19 @@ final class GameState: ObservableObject {
     static let partLabels: [String: String] = [
         "engine": "Engine", "turbo": "Turbo", "exhaust": "Exhaust",
         "tires": "Tires", "suspension": "Suspension", "bodykit": "Body Kit",
+        "nitrous": "Nitrous Kit", "ecu": "ECU",
     ]
-    static let partTypes = ["engine", "turbo", "exhaust", "tires", "suspension", "bodykit"]
+    static let partTypes = ["engine", "turbo", "exhaust", "tires", "suspension", "bodykit",
+                            "nitrous", "ecu"]
     static let partIcons: [String: String] = [
         "engine": "⚙️", "turbo": "🌀", "exhaust": "💨",
         "tires": "🛞", "suspension": "🔩", "bodykit": "🎨",
+        "nitrous": "🚀", "ecu": "💾",
     ]
+
+    /// #8 Nitrous Kit: utility part — bigger NOS tank + faster regen (tier 0 = stock).
+    static func nosCap(_ tier: Int) -> Int { 100 + 25 * tier }
+    static func nosRegen(_ tier: Int) -> Float { 8 + 4 * Float(tier) }
 
     struct Friend {
         let name: String
@@ -413,6 +504,7 @@ final class GameState: ObservableObject {
         if let p = car.parts.tires      { handling += 11 * p.tier; accel += 4 * p.tier }
         if let p = car.parts.suspension { handling += 13 * p.tier }
         if let p = car.parts.bodykit    { handling += 9 * p.tier; speed += 4 * p.tier }
+        if let p = car.parts.ecu        { accel += 3 * p.tier } // #9 ECU
         let clamp = { min(100, max(0, $0)) }
         return Stats(speed: clamp(speed), accel: clamp(accel), handling: clamp(handling))
     }
@@ -426,17 +518,14 @@ final class GameState: ObservableObject {
         0xfbcfe8, 0x99e9f2, 0xfed7aa, 0xd9f99d, 0xc7d2fe]
 
     // tier weights: 1:45% 2:30% 3:17% 4:8% (BigSpenders: 1:25% 2:35% 3:25% 4:15%)
+    // #3 prestige shifts ~10 points per level (cap 3) from low tiers into t3/t4
     private func weightedTier(_ archetype: String) -> Int {
+        let w = archetype == "bigspender" ? [25.0, 60.0, 85.0] : [45.0, 75.0, 92.0]
+        let boost = Double(min(3, prestige) * 10)
         let r = Double.random(in: 0..<100)
-        if archetype == "bigspender" {
-            if r < 25 { return 1 }
-            if r < 60 { return 2 }
-            if r < 85 { return 3 }
-            return 4
-        }
-        if r < 45 { return 1 }
-        if r < 75 { return 2 }
-        if r < 92 { return 3 }
+        if r < max(5, w[0] - boost) { return 1 }
+        if r < max(w[0] + 2, w[1] - boost / 2) { return 2 }
+        if r < w[2] + boost / 2 { return 3 }
         return 4
     }
 
@@ -444,6 +533,8 @@ final class GameState: ObservableObject {
     var forcedArchetype: String? = nil
     /// Debug launch arg `-golden` pins every generated customer golden (screenshots).
     var forcedGolden = false
+    /// Debug launch arg `-customertier N` pins every generated part tier (screenshots).
+    var forcedCustomerTier: Int? = nil
 
     /// Archetype roll: Regular 55% / Rushed 15% / Skeptic 15% / BigSpender 15%.
     private func rollArchetype() -> String {
@@ -487,13 +578,13 @@ final class GameState: ObservableObject {
         var archetype = rollArchetype()
         if bodyStyle == "truck", Double.random(in: 0..<1) < 0.5 { archetype = "bigspender" }
         if let forced = forcedArchetype { archetype = forced }
-        // golden customer: 3% — all parts tier ≥3, pays ×3
-        let golden = forcedGolden || Double.random(in: 0..<1) < 0.03
+        // golden customer: 3% (5% with the L3 showroom) — all parts tier ≥3, pays ×3
+        let golden = forcedGolden || Double.random(in: 0..<1) < goldenChance()
         var parts: [CustomerPart]
         repeat {
             parts = GameState.partTypes.map { type in
                 CustomerPart(id: uid(), type: type,
-                             tier: golden ? max(3, weightedTier(archetype)) : weightedTier(archetype),
+                             tier: forcedCustomerTier ?? (golden ? max(3, weightedTier(archetype)) : weightedTier(archetype)),
                              needsService: Double.random(in: 0..<1) < 0.6)
             }
         } while !parts.contains { $0.needsService } // at least one part must need service
@@ -551,6 +642,11 @@ final class GameState: ObservableObject {
         hof = []
         daily = DailyBests()
         lastSeenVersion = Self.appVersion // first-ever players never see What's-New
+        prestige = 0
+        garageLevel = 1
+        rematch = [:]
+        dailyChallengeDate = ""
+        paint = nil
         save()
     }
 
@@ -574,7 +670,9 @@ final class GameState: ObservableObject {
             elitePity: elitePity, bestLaps: bestLaps,
             savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
             cleanStreak: cleanStreak, achievements: achievements, stats: stats,
-            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion)
+            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion,
+            prestige: prestige, garageLevel: garageLevel, rematch: rematch,
+            dailyChallengeDate: dailyChallengeDate, paint: paint)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -625,7 +723,9 @@ final class GameState: ObservableObject {
             elitePity: elitePity, bestLaps: bestLaps,
             savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
             cleanStreak: cleanStreak, achievements: achievements, stats: stats,
-            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion)
+            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion,
+            prestige: prestige, garageLevel: garageLevel, rematch: rematch,
+            dailyChallengeDate: dailyChallengeDate, paint: paint)
         let payload = SaveExport(app: "shady-garage-speed", saveVersion: 2,
                                  exportedAt: ISO8601DateFormatter().string(from: Date()), data: data)
         let encoder = JSONEncoder()
@@ -695,6 +795,11 @@ final class GameState: ObservableObject {
         hof = Array((raw.hof ?? []).prefix(10))
         daily = raw.daily ?? DailyBests()
         lastSeenVersion = raw.lastSeenVersion ?? ""
+        prestige = max(0, raw.prestige ?? 0)
+        garageLevel = min(3, max(1, raw.garageLevel ?? 1))
+        rematch = raw.rematch ?? [:]
+        dailyChallengeDate = raw.dailyChallengeDate ?? ""
+        paint = raw.paint.flatMap { $0 >= 0 && $0 <= 0xffffff ? $0 : nil }
         // migration: the legacy scalar bestLap belongs to the classic track
         if bestLaps["classic"] == nil, let legacy = bestLap {
             bestLaps["classic"] = legacy
@@ -735,6 +840,11 @@ struct SaveData: Codable {
     var hof: [HofEntry]             // #75
     var daily: DailyBests           // #72
     var lastSeenVersion: String     // #80
+    var prestige: Int               // #3
+    var garageLevel: Int            // #4
+    var rematch: [String: Int]      // #6
+    var dailyChallengeDate: String  // #7
+    var paint: Int?                 // #10
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -769,6 +879,11 @@ struct RawSave: Codable {
     var hof: [HofEntry]?
     var daily: DailyBests?
     var lastSeenVersion: String?
+    var prestige: Int?
+    var garageLevel: Int?
+    var rematch: [String: Int]?
+    var dailyChallengeDate: String?
+    var paint: Int?
 }
 
 struct RawCar: Codable {
