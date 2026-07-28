@@ -1,6 +1,6 @@
 # Shady Garage & Speed — App Store listing draft
 
-**Price:** $0.99 · **No ads, no IAP, ever.** · **Age 12+ (mild crime theme)**
+**Price:** $1.99 · **No ads, no IAP, ever.** · **Age 12+ (mild crime theme)**
 **Privacy:** Data Not Collected. Save lives on-device (optional iCloud sync).
 **Platforms:** iPhone + iPad · **Game Center:** leaderboards
 
