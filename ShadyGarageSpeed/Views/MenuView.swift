@@ -21,6 +21,7 @@ struct MenuView: View {
                     .tracking(3)
                     .shadow(color: .black.opacity(0.55), radius: 12, y: 6)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
 
                 Text("Fix cars. Maybe steal parts. Build a racer.")
                     .font(sgsFont(17))
