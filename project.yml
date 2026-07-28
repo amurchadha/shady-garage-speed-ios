@@ -64,6 +64,24 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         SUPPORTS_MACCATALYST: NO # WidgetKit extensions don't exist on macOS Catalyst
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator" # embed phase skips macOS (#60)
+  ShadyGarageSpeedTests:
+    # #84 plain-logic unit tests for GameState (no UI, host-app @testable import)
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: ShadyGarageSpeedTests
+    dependencies:
+      - target: ShadyGarageSpeed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.noshu.shadygaragespeed.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+        TEST_TARGET_NAME: ShadyGarageSpeed
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
   ShadyGarageSpeedUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -86,7 +104,9 @@ schemes:
     build:
       targets:
         ShadyGarageSpeed: all
+        ShadyGarageSpeedTests: [test]
         ShadyGarageSpeedUITests: [test]
     test:
       targets:
+        - ShadyGarageSpeedTests
         - ShadyGarageSpeedUITests
