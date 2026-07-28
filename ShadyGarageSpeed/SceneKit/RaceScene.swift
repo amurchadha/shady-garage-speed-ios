@@ -118,6 +118,14 @@ final class RaceScene: SceneController {
             if trackIndex != oldValue { reloadTrack() }
         }
     }
+    /// #20 drive the same loop backwards (start line stays put; scene rebuilt on flip).
+    var reversed = false {
+        didSet {
+            if reversed != oldValue { reloadTrack() }
+        }
+    }
+    /// #19 hardcore night: darker hemisphere, ×1.5 reward (time trials only).
+    private var hardcore = false
     private var track: GameState.RaceTrack { GameState.tracks[trackIndex] }
     private var foggy = false
     /// Pink-slip mode: ladder position (0–3) set by AppState.startChallenge.
@@ -320,7 +328,9 @@ final class RaceScene: SceneController {
     }
 
     private func buildTrack() {
-        let pts = track.points // control points from the active TRACKS entry
+        // #20 reversed: same closed loop sampled the other way round, keeping
+        // control point 0 so the start line stays put (barriers/decor unchanged)
+        let pts = reversed ? [track.points[0]] + track.points.dropFirst().reversed() : track.points
         let l = pts.count
         let tension = 0.6
         func evalCurve(_ t: Double) -> SIMD2<Double> {
@@ -387,8 +397,10 @@ final class RaceScene: SceneController {
     }
 
     private func mapPoint(_ c: SIMD2<Float>) -> CGPoint {
-        CGPoint(x: CGFloat(12 + (c.x - mapMinX) / mapRange * 116) / 140,
-                y: CGFloat(12 + (c.y - mapMinZ) / mapRange * 116) / 140)
+        // #20 the minimap mirrors horizontally on reversed tracks
+        let nx = reversed ? 1 - (c.x - mapMinX) / mapRange : (c.x - mapMinX) / mapRange
+        return CGPoint(x: CGFloat(12 + nx * 116) / 140,
+                       y: CGFloat(12 + (c.y - mapMinZ) / mapRange * 116) / 140)
     }
 
     // MARK: - scene construction
@@ -810,6 +822,8 @@ final class RaceScene: SceneController {
         game.raceCount += 1
         game.save()
         let c = Self.tods[todIndex]
+        // #19 hardcore night: time trials at night only (rivals race fair)
+        hardcore = todIndex == 2 && game.hardcoreNight && challengeIndex == nil
 
         // dimming: rain ~12% / fog ~15% (muted fog palette, stays readable)
         let dim: CGFloat = raining ? 0.88 : foggy ? 0.85 : 1
@@ -825,7 +839,7 @@ final class RaceScene: SceneController {
         // bloom per TOD: subtle by day, glowing lamps/flames at night
         cameraNode.camera?.bloomIntensity = todIndex == 0 ? 0.2 : todIndex == 1 ? 0.5 : 0.9
 
-        hemiLight.intensity = c.hemi * 1000 * (raining ? 0.9 : 1)
+        hemiLight.intensity = c.hemi * 1000 * (raining ? 0.9 : 1) * (hardcore ? 0.7 : 1) // #19 darker
         hemiLight.color = UIColor(rgb: c.hemiSky)
         dirLight.intensity = c.sun * 1000
         dirLight.color = UIColor(rgb: c.sunColor)
@@ -839,7 +853,7 @@ final class RaceScene: SceneController {
 
         lampGroup.isHidden = todIndex != 2
         rainGroup.isHidden = !raining // fog has no streaks (rain keeps them + grip)
-        let text = c.name + (raining ? " · RAIN" : foggy ? " · FOG" : "")
+        let text = c.name + (hardcore ? " · HARDCORE" : "") + (raining ? " · RAIN" : foggy ? " · FOG" : "")
         DispatchQueue.main.async { self.conditionsText = text }
     }
 
@@ -1065,16 +1079,17 @@ final class RaceScene: SceneController {
         for f in flames { f.isHidden = true }
         let lap = raceT
         LiveActivityManager.end(finalLap: lap) // #57 shows the lap, then dismisses
-        // per-track best laps (bestLaps keyed by track id)
-        let trackId = track.id
+        // per-track+direction best laps (bestLaps keyed e.g. classic / classicR — #20)
+        let trackId = track.id + (reversed ? "R" : "")
         let priorBest = game.bestLaps[trackId]
         let newBest = priorBest == nil || lap < priorBest!
         let best = newBest ? lap : priorBest!
         let sum = stats.speed + stats.accel + stats.handling
         let mult = max(0.5, min(1.8, 22.0 / lap))
         // pink-slip runs pay the rival's prize only — no normal reward (web parity)
+        // #19 hardcore nights pay ×1.5 (time trials only)
         let value = challengeIndex == nil ? Int((Double(sum) * 12 * mult).rounded()) : 0
-        let reward = challengeIndex == nil ? Int((Double(value) * 0.12).rounded()) : 0
+        let reward = challengeIndex == nil ? Int((Double(value) * 0.12 * (hardcore ? 1.5 : 1)).rounded()) : 0
 
         // pink-slip resolution — pure computation here; rewards applied on main
         var challengeResult: ChallengeResult? = nil
@@ -1091,7 +1106,9 @@ final class RaceScene: SceneController {
                                 newBest: newBest, challenge: challengeResult)
         if newBest { sfx.fanfare() } else { sfx.success() } // arpeggio on a new best
         Haptics.notify(.success)
-        GCManager.shared.submitBestLap(trackId: trackId, seconds: lap) // #51 (no-op unless enabled)
+        if !reversed { // #51 forward laps only — leaderboards have no direction
+            GCManager.shared.submitBestLap(trackId: trackId, seconds: lap)
+        }
 
         DispatchQueue.main.async { [game, toasts] in
             if newBest {

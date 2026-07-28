@@ -209,7 +209,8 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(speed.waitForExistence(timeout: 5))
         XCTAssertEqual(speed.label, "27") // L1 chassis base
         shot("build_before_install")
-        app.buttons["install-0"].tap() // seeded engine, tier 3 (+11 speed/tier)
+        // #68 tier/type sort: body kit 0, ENGINE 1 among the six seeded t3 parts
+        app.buttons["install-1"].tap() // seeded engine, tier 3 (+11 speed/tier)
         XCTAssertEqual(speed.label, "60")
         shot("build_after_install")
     }
@@ -423,6 +424,59 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["hud-suspicion"].label, "0",
                        "suspicion must reset to 0 after a relaunch")
         shot("relaunch_suspicion_zero")
+    }
+
+    /// #15 clean-job streak: seeded at 2, one clean job → streak 3 pays +25%
+    /// with the "Clean streak x3 — bonus!" toast and the 🔥 chip in the topbar.
+    func testCleanStreakBonus() throws {
+        launch(["-reset", "-phase", "garage", "-notut", "-streak", "2"])
+        let prompt = app.staticTexts["garage-prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+
+        XCTAssertTrue(tapFirstEnabled("fix", range: 0...5), "no fixable part")
+        let finish = app.buttons["finish-job"]
+        XCTAssertTrue(finish.isEnabled)
+        finish.tap()
+
+        XCTAssertTrue(app.staticTexts["Clean streak x3 — bonus!"].waitForExistence(timeout: 5),
+                      "streak toast should fire on the 3rd clean job")
+        let chip = app.staticTexts["streak-chip"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 3), "🔥 chip should show at streak ≥2")
+        XCTAssertTrue(waitLabel(chip, contains: "3", timeout: 2),
+                      "chip should read 3, got \(chip.label)")
+        shot("streak_bonus")
+    }
+
+    /// #67 bulk sell + #66 Pro confirm: seeded 6 Pro parts + 3 Stock → Sell Stock
+    /// clears the stock in one toast; selling a Pro opens the priced confirm alert.
+    func testSellConfirmAndBulkSell() throws {
+        launch(["-reset", "-seedparts", "-seedstock", "3", "-phase", "build"])
+
+        // bulk sell: one button clears all 3 tier-1 parts
+        let bulk = app.buttons["bulk-sell"]
+        XCTAssertTrue(bulk.waitForExistence(timeout: 8))
+        XCTAssertTrue(waitLabel(bulk, contains: "3", timeout: 3),
+                      "bulk button should count the stock, got \(bulk.label)")
+        bulk.tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Sold 3 stock parts'")).firstMatch
+                        .waitForExistence(timeout: 3), "bulk-sell toast should fire")
+
+        // Pro sale: confirm alert carries the fence price, then the part is gone
+        let sell = app.buttons["sell-0"] // tier-desc sort: a Pro part is first
+        XCTAssertTrue(sell.waitForExistence(timeout: 3))
+        let countBefore = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'install-'")).count
+        sell.tap()
+        let confirm = app.buttons["sell-confirm"].firstMatch // alert + a11y tree duplicate
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3), "Pro sale should open the confirm")
+        shot("sell_confirm")
+        confirm.tap()
+        let exp = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "count == %d", countBefore - 1),
+            object: app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'install-'")))
+        XCTAssertEqual(XCTWaiter.wait(for: [exp], timeout: 3), .completed,
+                       "one Pro part should be sold after confirming")
+        shot("sell_done")
     }
 
     /// landscape: garage HUD + race controls must fit sideways. Runs LAST (name sorts

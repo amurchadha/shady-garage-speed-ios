@@ -42,6 +42,10 @@ struct SettingsSheet: View {
                                      set: { A11y.userOverride = $0 }))
                     .accessibilityIdentifier("set-rm")
 
+                // #19 hardcore night races: darker, ×1.5 reward (pink-slips exempt)
+                Toggle("Hardcore night races", isOn: $game.hardcoreNight)
+                    .accessibilityIdentifier("set-hardcore")
+
                 // difficulty (#61)
                 HStack(spacing: 8) {
                     Text("Difficulty")

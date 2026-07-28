@@ -53,6 +53,11 @@ final class GarageScene: SceneController {
     private var customerWheels: [SCNNode] = []
     private var wheelSpin: Float = 0
     private var flinchT: Double = 0 // #29 steal-peek flinch
+    /// #16 green-steal combo (session-only): consecutive green swaps.
+    private(set) var stealCombo = 0
+    /// #17 ending suspicion of the previous job — feeds the next customer (Day 10+).
+    private var lastJobSuspicion = 0
+    private var carryToasted = false // #17 one-time "word travels" toast
 
     /// #29 suspicious glance-lean while a Steal button is pressed-and-held.
     func ownerFlinch() {
@@ -422,6 +427,15 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         let c = game.generateCustomer()
         customer = c
+        // #17 from Day 10 the next customer inherits 20% of the last one's
+        // ending suspicion (cap 30); one-time toast, nothing persisted.
+        if game.day >= 10 && lastJobSuspicion > 0 {
+            game.suspicion = min(30, Int((Double(lastJobSuspicion) * 0.2).rounded()))
+            if game.suspicion > 0 && !carryToasted {
+                carryToasted = true
+                toasts.push("Word travels. Customers are warier now.", .warn)
+            }
+        }
         let car = CarFactory.makeCar(color: c.color, bodyStyle: c.bodyStyle)
         car.position = SCNVector3(38, 0, 24)
         car.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
@@ -695,12 +709,17 @@ final class GarageScene: SceneController {
             customer = c
             jobActions += 1
             jobSteals += 1
+            game.cleanStreak = 0 // #15 any steal breaks the clean streak immediately
             game.heat = min(100, game.heat + Int(((6.0 + 2.0 * Double(tier)) * game.diffMods.heat).rounded()))
             if game.heat >= 35 && !game.heatHintShown {
                 game.heatHintShown = true // one-time onboarding, persisted
                 toasts.push("🌡️ Heat draws the cops — they visit at 70, raid at 100. Clean jobs cool things down.", .warn)
             }
-            let gain = (zone == "green" ? Double(12 + 6 * tier) : Double(25 + 8 * tier)) * mult
+            // #16 green-steal combo: green #2 → ×0.85, green #3+ → ×0.7; yellow/red resets
+            if zone == "green" { stealCombo += 1 } else { stealCombo = 0 }
+            let comboMult = stealCombo >= 3 ? 0.7 : stealCombo == 2 ? 0.85 : 1
+            var gain = (zone == "green" ? Double(12 + 6 * tier) : Double(25 + 8 * tier)) * mult
+            if zone == "green" { gain *= comboMult }
             addSuspicion(gain)
             sfx.cash()
             Haptics.stealSuccess() // #56 success notification + click-click
@@ -728,6 +747,12 @@ final class GarageScene: SceneController {
         let onTime = c.archetype != "rushed" || (elapsed - inspectStartT) <= Self.rushedWindow
         var mult = game.payMult * game.archPayMult(c.archetype, onTime: onTime) * game.diffMods.pay
         if c.golden { mult *= 3 } // golden customer pays triple
+        // #15 clean-job streak: zero steals keeps it alive; every 3rd clean job +25%
+        if jobSteals == 0 {
+            game.cleanStreak += 1
+            if game.cleanStreak % 3 == 0 { mult *= 1.25 }
+        }
+        let streakBonus = jobSteals == 0 && game.cleanStreak % 3 == 0
         let payment = Int((Double(jobTotal) * mult).rounded())
         game.cash += payment
         game.customersServed += 1
@@ -739,11 +764,13 @@ final class GarageScene: SceneController {
             game.heat = max(0, game.heat - 8) // clean job cools things down
             dayEvents.insert("clean")
         }
+        lastJobSuspicion = game.suspicion // #17 ending suspicion feeds the next customer
         game.suspicion = 0
         game.save()
         sfx.cash()
         Haptics.cashCascade() // #56 light cascade on payment
         toasts.push("Job done! +$\(payment)", .good)
+        if streakBonus { toasts.push("Clean streak x\(game.cleanStreak) — bonus!", .good) } // #15
         toasts.pushCash("+$\(payment)") // floating cash pop
         publishLugnut()
         driveOut(true)

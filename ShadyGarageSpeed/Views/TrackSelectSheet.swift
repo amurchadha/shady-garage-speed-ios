@@ -18,18 +18,25 @@ struct TrackSelectSheet: View {
 
             ForEach(GameState.tracks.indices, id: \.self) { i in
                 let t = GameState.tracks[i]
+                let rev = app.trackReversed.contains(t.id) // #20 direction flip
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(t.name)
+                        Text(t.name + (rev ? " ⇄" : ""))
                             .font(sgsFont(15, .bold))
-                        Text("\(t.feel.capitalized) · Par \(String(format: "%.0f", t.par))")
+                        Text("\(t.feel.capitalized) · Par \(String(format: "%.0f", t.par + (rev ? 1 : 0)))\(rev ? " · reversed" : "")")
                             .font(sgsFont(12))
                             .foregroundStyle(Color.sgsMuted)
-                        Text("Best: \(RaceScene.fmtTime(game.bestLaps[t.id]))")
+                        Text("Best: \(RaceScene.fmtTime(game.bestLaps[t.id + (rev ? "R" : "")]))")
                             .font(sgsFont(12, .semibold))
                             .foregroundStyle(Color.sgsCyan)
                     }
                     Spacer()
+                    SGSButton(title: "⇄", ghost: !rev, small: true, a11y: "track-flip-\(i)",
+                              label: "Flip direction",
+                              hint: rev ? "Drive \(t.name) forwards" : "Drive \(t.name) backwards") {
+                        // #20 session-only flip; par +1s and bests keyed per direction
+                        if rev { app.trackReversed.remove(t.id) } else { app.trackReversed.insert(t.id) }
+                    }
                     SGSButton(title: "Race", small: true, a11y: "track-row-\(i)",
                               hint: "Start a time trial on \(t.name)") {
                         dismiss()

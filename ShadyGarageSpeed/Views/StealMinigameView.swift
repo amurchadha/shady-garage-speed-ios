@@ -13,6 +13,7 @@ struct StealMinigameView: View {
     var tier: Int = 2
     var heat: Int = 0
     var diffGreen: Double = 1 // difficulty multiplier on the green width
+    var combo: Int = 0        // #16 green-steal combo count at open (badge when ≥2)
     let onResolve: (String) -> Void // "green" | "yellow" | "red"
 
     @Environment(\.scenePhase) private var scenePhase
@@ -23,6 +24,12 @@ struct StealMinigameView: View {
     @State private var flash: String? = nil
     @State private var resolved = false
     @State private var lastTick: CFTimeInterval? = nil
+
+    /// #16 badge count: open value, or post-increment once resolved green.
+    private var shownCombo: Int {
+        if let flash { return flash == "green" ? combo + 1 : 0 }
+        return combo
+    }
 
     private let ticker = Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()
 
@@ -48,6 +55,17 @@ struct StealMinigameView: View {
             VStack(spacing: 16) {
                 Text(title)
                     .font(.title3.bold())
+                if shownCombo >= 2 {
+                    // #16 green-steal combo badge
+                    Text("COMBO x\(shownCombo)")
+                        .font(sgsFont(12, .black))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Color.sgsGood.opacity(0.25))
+                        .foregroundStyle(Color.sgsGood)
+                        .clipShape(Capsule())
+                        .accessibilityIdentifier("mg-combo")
+                }
                 if accessibleMode {
                     // accessible alternative: explicit risk choices, same zone outcomes
                     Text("Choose your approach:")

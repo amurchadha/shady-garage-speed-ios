@@ -189,6 +189,27 @@ final class BuildScene: SceneController {
         toasts.push("Sold \(GameState.partLabels[part.type] ?? part.type) +$\(price)", .good)
     }
 
+    /// #67 bulk sell: every tier-1 part in one toast (hot same-day goods +5 heat each).
+    func sellStock() {
+        let stock = game.inventory.filter { $0.tier == 1 }
+        guard !stock.isEmpty else { return }
+        var total = 0, hot = 0
+        for p in stock {
+            total += game.fencePrice(p)
+            if p.stolenDay == game.day { hot += 1 }
+        }
+        game.inventory.removeAll { $0.tier == 1 }
+        game.cash += total
+        if hot > 0 {
+            game.heat = min(100, game.heat + 5 * hot)
+            toasts.push("Hot goods attracted attention +\(5 * hot) Heat", .warn)
+        }
+        game.save()
+        refreshCustomCar()
+        sfx.cash()
+        toasts.push("Sold \(stock.count) stock parts +$\(total)", .good)
+    }
+
     /// Contracts board: hand over the lowest matching part, collect the reward.
     func fulfillContract() {
         guard let reward = game.fulfillContract() else {

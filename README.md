@@ -142,6 +142,9 @@ xcrun simctl launch booted com.noshu.shadygaragespeed -phase race -tod night -ra
 - `-confetti` — force a confetti burst when the race finishes (screenshots).
 - `-photo` — enter results photo mode automatically on finish (screenshots).
 - `-entrance normal|reverse|swing` — force the customer entrance roll (screenshots).
+- `-streak N` — seed the clean-job streak (streak/chip tests, screenshots).
+- `-reverse` — pre-flip every track card to reversed (and the debug race) (#20 screenshots).
+- `-seedstock N` — seed N tier-1 parts (bulk-sell tests).
 
 ## UI tests
 
@@ -381,6 +384,38 @@ the entitlement keys (template comments in the entitlements file), and uncomment
 `SWIFT_ACTIVE_COMPILATION_CONDITIONS` in `project.yml`, then `xcodegen` +
 `Scripts/patch-catalyst-embed.sh`. With a flag ON but the entitlement missing,
 each feature fails silent (never authenticates / never syncs).
+
+## Systems batch (#15–#20, #66–#70)
+
+- **Clean-job streak (#15)**: persisted `cleanStreak` — zero-steal jobs increment it,
+  every 3rd clean job pays +25% ("Clean streak xN — bonus!" toast), any steal resets
+  it immediately, and a 🔥 chip rides the topbar at streak ≥2.
+- **Green-steal combo (#16)**: session-only combo — the 2nd consecutive green swap
+  costs ×0.85 suspicion, the 3rd+ ×0.7; yellow/red resets. A "COMBO xN" badge shows
+  in the minigame modal at ≥2.
+- **Day-10 suspicion carryover (#17)**: from Day 10 each new customer inherits 20%
+  of the previous one's ending suspicion (cap 30) — session-derived, one-time
+  "Word travels…" toast, nothing persisted.
+- **Hardcore night (#19)**: Settings toggle (default ON) — night time trials run
+  darker (hemisphere ×0.7) and pay ×1.5, labeled "NIGHT · HARDCORE" under the
+  timer. Pink-slip challenges are exempt (rivals race fair).
+- **Reverse tracks (#20)**: ⇄ toggle on each track-select card (session-only) —
+  the same loop driven backwards (start line stays, barriers/decor unchanged,
+  minimap mirrors), par +1s, best laps keyed per direction (`classic`/`classicR`/
+  `ridge`/`ridgeR`). Challenges always run Classic forwards; Game Center submits
+  forward laps only.
+- **Sell systems (#66–#68)**: Pro/Elite sales open a confirm alert carrying the
+  demand-adjusted fence price; a "Sell Stock (n · $X)" button fences every tier-1
+  part in one toast (hot same-day goods still cost +5 heat each); the inventory
+  gets All|T1–T4 filter chips and a tier/type sort toggle, both persisted in
+  settings.
+- **Offline heat decay (#70)**: on load, heat drops 2 per hour away (max −20) keyed
+  off the save's `savedAtMs`; at −10 or more you get "Things cooled off while you
+  were away."
+- New debug args: `-streak N` (seed the clean streak), `-reverse` (pre-flip all
+  track cards + the debug race), `-seedstock N` (seed N tier-1 parts).
+- New UI tests: `testCleanStreakBonus` (streak 2 → clean job → x3 toast + chip),
+  `testSellConfirmAndBulkSell` (bulk button clears stock; Pro sale confirms first).
 
 ## Notes
 

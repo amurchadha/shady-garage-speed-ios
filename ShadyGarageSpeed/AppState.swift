@@ -80,6 +80,8 @@ final class AppState: ObservableObject {
     @Published var lastFinish: FinishData?
     /// Pre-race track-select sheet (opened by the garage topbar Race button).
     @Published var showTrackSheet = false
+    /// #20 session direction flips (track-select ⇄ per card; not persisted).
+    @Published var trackReversed: Set<String> = []
     /// #59 orientation setting mirror so Settings rows repaint on change.
     @Published var orientationMode = OrientationLock.mode
     /// Results photo mode: UI hidden, slow orbit of the parked car (web #25).
@@ -122,12 +124,22 @@ final class AppState: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "sgs_save") // fresh state for tests
         }
         game.load() // restore save if present (New Game overwrites on Start)
+        // #70 offline heat decay notice (decay itself applied in game.load())
+        if game.offlineCool >= 10 {
+            toasts.push("Things cooled off while you were away. (−\(game.offlineCool) heat)", .info)
+        }
         game.onSaveFailure = { [weak self] in
             self?.toasts.push("⚠️ Save failed — progress may not persist.", .bad)
         }
         if args.contains("-seedparts") {
             // deterministic inventory for tests: one tier-3 part of each type
             for t in GameState.partTypes { game.inventory.append(game.makePart(t, 3)) }
+            game.save()
+        }
+        if let i = args.firstIndex(of: "-seedstock"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            // deterministic tier-1 stock for bulk-sell tests (#67)
+            for k in 0..<n { game.inventory.append(game.makePart(GameState.partTypes[k % GameState.partTypes.count], 1)) }
             game.save()
         }
         raceScene.onFinish = { [weak self] data in
@@ -280,18 +292,20 @@ final class AppState: ObservableObject {
         raceChallenge = nil
         raceScene.challengeIndex = nil
         raceScene.trackIndex = i
+        raceScene.reversed = trackReversed.contains(GameState.tracks[i].id) // #20
         phase = .race
         raceScene.startRun()
     }
 
     /// Pink-slip challenge: race the rival at ladder position `pos` (0–3).
-    /// Rival challenges always stay on Classic.
+    /// Rival challenges always stay on Classic, driven forwards.
     func startChallenge(_ pos: Int) {
         guard GameState.ladderRival(pos) != nil else { return }
         garageScene.exitPlay()
         raceChallenge = pos
         raceScene.challengeIndex = pos
         raceScene.trackIndex = 0
+        raceScene.reversed = false // #20 rivals race the classic direction
         phase = .race
         raceScene.startRun()
     }
@@ -301,7 +315,7 @@ final class AppState: ObservableObject {
         raceChallenge = nil
         raceScene.challengeIndex = nil
         phase = .race
-        raceScene.startRun()
+        raceScene.startRun() // keeps the current track + direction
     }
 
     /// Debug deep-link from launch args, e.g. `-phase race` (used for screenshots/testing).
@@ -345,6 +359,12 @@ final class AppState: ObservableObject {
         }
         if args.contains("-debughud") { garageScene.debugHUD = true }
         if args.contains("-audio-debug") { AudioEngine.audioDebug = true }
+        if let i = args.firstIndex(of: "-streak"), i + 1 < args.count,
+           let n = Int(args[i + 1]) {
+            game.cleanStreak = max(0, n) // #15 seed for tests/screenshots
+        }
+        // #20 pre-flip every track card (and the debug race) — screenshots
+        if args.contains("-reverse") { trackReversed = Set(GameState.tracks.map(\.id)) }
         if let i = args.firstIndex(of: "-heat"), i + 1 < args.count,
            let h = Int(args[i + 1]) {
             game.heat = min(100, max(0, h))

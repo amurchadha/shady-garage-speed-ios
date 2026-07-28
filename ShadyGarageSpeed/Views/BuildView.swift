@@ -13,6 +13,8 @@ struct BuildView: View {
     /// Debug launch arg `-catalog` opens the Catalog tab directly (screenshots/tests).
     @State private var tab: BuildTab =
         ProcessInfo.processInfo.arguments.contains("-catalog") ? .catalog : .inventory
+    /// #66 Pro/Elite sell confirmation (alert carries the fence price).
+    @State private var confirmSell: Part? = nil
 
     var body: some View {
         GeometryReader { geo in
@@ -56,6 +58,20 @@ struct BuildView: View {
             }
             .onChange(of: geo.size) { _, newSize in
                 scene.portraitFraming = newSize.height >= 520 && newSize.width < 700
+            }
+            // #66 Pro/Elite sales confirm first (Stock/Sport sell instantly)
+            .alert("Sell part?", isPresented: Binding(get: { confirmSell != nil },
+                                                      set: { if !$0 { confirmSell = nil } })) {
+                Button("Sell", role: .destructive) {
+                    if let p = confirmSell { scene.sellPart(p.id) }
+                    confirmSell = nil
+                }
+                .accessibilityIdentifier("sell-confirm")
+                Button("Cancel", role: .cancel) { confirmSell = nil }
+            } message: {
+                if let p = confirmSell {
+                    Text("Sell \(GameState.tierNames[p.tier]) \(GameState.partLabels[p.type] ?? p.type) for $\(game.fencePrice(p))?")
+                }
             }
         }
     }
@@ -147,16 +163,32 @@ struct BuildView: View {
                     }
 
                     if tab == .inventory {
+                        invControls // #67 bulk sell + #68 filter chips / sort toggle
                         if game.inventory.isEmpty {
                             Text("No parts yet. Steal some from customers, or buy from the Catalog…")
                                 .font(sgsFont(13))
                                 .foregroundStyle(Color.sgsMuted)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 10)
+                        } else if displayInventory.isEmpty {
+                            Text("Nothing at this tier.")
+                                .font(sgsFont(13))
+                                .foregroundStyle(Color.sgsMuted)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 10)
                         } else {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                ForEach(Array(game.inventory.enumerated()), id: \.element.id) { i, part in
-                                    invCard(part, index: i)
+                            // NON-lazy 2-column grid: lazy grids keep off-screen rows out
+                            // of the accessibility tree (VoiceOver + XCUITest) entirely.
+                            VStack(spacing: 8) {
+                                ForEach(Array(stride(from: 0, to: displayInventory.count, by: 2)), id: \.self) { row in
+                                    HStack(spacing: 8) {
+                                        invCard(displayInventory[row], index: row)
+                                        if row + 1 < displayInventory.count {
+                                            invCard(displayInventory[row + 1], index: row + 1)
+                                        } else {
+                                            Spacer()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -223,13 +255,56 @@ struct BuildView: View {
                           label: "Install \(partName)") { scene.installPart(part.id) }
                 SGSButton(title: "Sell $\(price)\(arrow.isEmpty ? "" : " \(arrow)")", ghost: true, tiny: true,
                           a11y: "sell-\(index)",
-                          label: "Sell \(partName) for $\(price)") { scene.sellPart(part.id) }
+                          label: "Sell \(partName) for $\(price)") {
+                              // #66 Pro/Elite sales confirm first (Stock/Sport sell instantly)
+                              if part.tier >= 3 { confirmSell = part } else { scene.sellPart(part.id) }
+                          }
             }
         }
         .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading) // equal-width grid cells
         .background(Color.sgsCard2)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityElement(children: .contain)
+    }
+
+    // MARK: #67 bulk sell + #68 inventory filter/sort
+
+    /// #68 filter by tier, then sort (tier desc | type A→Z with tier-desc tiebreak).
+    private var displayInventory: [Part] {
+        var inv = game.inventory
+        if game.invFilter > 0 { inv = inv.filter { $0.tier == game.invFilter } }
+        inv.sort { a, b in
+            let la = GameState.partLabels[a.type] ?? a.type
+            let lb = GameState.partLabels[b.type] ?? b.type
+            if game.invSort == "type" { return la != lb ? la < lb : a.tier > b.tier }
+            return a.tier != b.tier ? a.tier > b.tier : la < lb
+        }
+        return inv
+    }
+
+    private var stockParts: [Part] { game.inventory.filter { $0.tier == 1 } }
+
+    private var invControls: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(0...4, id: \.self) { t in
+                    SGSButton(title: t == 0 ? "All" : "T\(t)", ghost: game.invFilter != t,
+                              tiny: true, a11y: "inv-filter-\(t)") { game.invFilter = t }
+                }
+                Spacer()
+                SGSButton(title: game.invSort == "tier" ? "Sort: tier ▾" : "Sort: type ▾",
+                          ghost: true, tiny: true, a11y: "inv-sort",
+                          hint: "Toggle sort order") {
+                    game.invSort = game.invSort == "tier" ? "type" : "tier"
+                }
+            }
+            let total = stockParts.reduce(0) { $0 + game.fencePrice($1) }
+            SGSButton(title: stockParts.isEmpty ? "Sell Stock"
+                                                 : "Sell Stock (\(stockParts.count) · $\(total))",
+                      small: true, disabled: stockParts.isEmpty, a11y: "bulk-sell",
+                      hint: "Sell every Stock (tier 1) part at once") { scene.sellStock() }
+        }
     }
 
     /// Catalog card: one part type, buy buttons for Sport/Pro/Elite tiers.

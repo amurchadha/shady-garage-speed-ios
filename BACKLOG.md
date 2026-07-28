@@ -47,6 +47,15 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - [x] #58 App Intents ("Start a race" → track picker, "What's my best lap?" → spoken per-track bests) — iOS
 - [x] #59 Per-phase orientation (Auto / Portrait / Landscape race via AppDelegate mask) — iOS
 - [x] #60 Catalyst check (builds + runs on macOS; ActivityKit guarded, iOS-filtered widget embed) — iOS, destination kept enabled
+- [x] #15 Clean-job streaks (persisted counter; zero-steal jobs increment, every 3rd pays +25% with toast, steal resets, 🔥 chip at ≥2) — iOS
+- [x] #16 Green-steal combo (session-only; green #2 ×0.85 / #3+ ×0.7 suspicion, yellow/red resets, COMBO badge in the minigame) — iOS
+- [x] #17 Day-10 suspicion carryover (next customer inherits 20% of the last ending suspicion, cap 30, one-time toast, session-only) — iOS
+- [x] #19 Hardcore night (Settings toggle, default ON; night time trials: hemisphere ×0.7, reward ×1.5, "NIGHT · HARDCORE"; pink-slips exempt) — iOS
+- [x] #20 Reverse tracks (⇄ toggle per track card, session-only; reversed centerline with start line fixed, mirrored minimap, par +1s, bests keyed classic/classicR/ridge/ridgeR) — iOS
+- [x] #66 High-tier sell confirm (Pro/Elite sales open a confirm alert with the demand-adjusted price) — iOS
+- [x] #67 Bulk sell (Sell Stock (n · $X) fences all tier-1 in one toast, +5 heat per hot part) — iOS
+- [x] #68 Inventory sort/filter (All|T1–T4 chips + tier/type sort toggle, persisted in settings) — iOS
+- [x] #70 Offline heat decay (−2 heat/hour away on load, max −20, toast at ≥10) — iOS
 
 ## Earlier iOS batches (pre-backlog)
 

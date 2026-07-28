@@ -114,14 +114,30 @@ final class GameState: ObservableObject {
     @Published var tutorialSeen = false
     /// Customers since a tier-4 part was last seen (drought breaker at 25).
     var elitePity = 0
-    /// Per-track best lap seconds {classic: x, ridge: y}.
+    /// Per-track best lap seconds {classic: x, ridge: y, classicR: …(#20 reversed)}.
     @Published var bestLaps: [String: Double] = [:]
+    /// #15 clean-job streak: consecutive jobs finished with zero steals (persisted).
+    @Published var cleanStreak = 0
+    /// #70 heat removed by the offline decay on the last load (session, for the toast).
+    private(set) var offlineCool = 0
 
     // MARK: settings (persisted outside the save blob, like the web's sgs_settings)
 
     /// Chill / Normal / Cutthroat — drives the DIFF_TABLE multipliers.
     @Published var difficulty: String = UserDefaults.standard.string(forKey: "sgs_difficulty") ?? "normal" {
         didSet { UserDefaults.standard.set(difficulty, forKey: "sgs_difficulty") }
+    }
+    /// #19 hardcore night races (darker, ×1.5 reward; pink-slips exempt). Default ON.
+    @Published var hardcoreNight: Bool = UserDefaults.standard.object(forKey: "sgs_hardcore") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(hardcoreNight, forKey: "sgs_hardcore") }
+    }
+    /// #68 inventory filter: 0 = All, else tier 1-4.
+    @Published var invFilter: Int = UserDefaults.standard.integer(forKey: "sgs_inv_filter") {
+        didSet { UserDefaults.standard.set(invFilter, forKey: "sgs_inv_filter") }
+    }
+    /// #68 inventory sort: "tier" (desc) | "type" (A→Z, tier desc tiebreak).
+    @Published var invSort: String = UserDefaults.standard.string(forKey: "sgs_inv_sort") ?? "tier" {
+        didSet { UserDefaults.standard.set(invSort, forKey: "sgs_inv_sort") }
     }
 
     struct DiffMods { let susp: Double, heat: Double, pay: Double, green: Double }
@@ -450,6 +466,7 @@ final class GameState: ObservableObject {
         tutorialSeen = false
         elitePity = 0
         bestLaps = [:]
+        cleanStreak = 0
         save()
     }
 
@@ -471,7 +488,8 @@ final class GameState: ObservableObject {
             heatHintShown: heatHintShown, copHintShown: copHintShown,
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
             elitePity: elitePity, bestLaps: bestLaps,
-            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000))
+            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
+            cleanStreak: cleanStreak)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -520,7 +538,8 @@ final class GameState: ObservableObject {
             heatHintShown: heatHintShown, copHintShown: copHintShown,
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
             elitePity: elitePity, bestLaps: bestLaps,
-            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000))
+            savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
+            cleanStreak: cleanStreak)
         let payload = SaveExport(app: "shady-garage-speed", saveVersion: 2,
                                  exportedAt: ISO8601DateFormatter().string(from: Date()), data: data)
         let encoder = JSONEncoder()
@@ -545,6 +564,14 @@ final class GameState: ObservableObject {
         guard let json = UserDefaults.standard.data(forKey: saveKey),
               let raw = try? JSONDecoder().decode(RawSave.self, from: json) else { return false }
         applyLoaded(raw)
+        // #70 offline heat decay: −2 heat per hour away, max −20, never below 0.
+        // AppState toasts "Things cooled off…" when offlineCool ≥ 10.
+        offlineCool = 0
+        if let ms = raw.savedAtMs, ms > 0, heat > 0 {
+            let hours = max(0, (Date().timeIntervalSince1970 * 1000 - Double(ms)) / 3_600_000)
+            offlineCool = min(20, Int(hours * 2), heat)
+            heat = max(0, heat - offlineCool)
+        }
         return true
     }
 
@@ -576,6 +603,7 @@ final class GameState: ObservableObject {
         tutorialSeen = raw.tutorialSeen ?? false
         elitePity = max(0, raw.elitePity ?? 0)
         bestLaps = raw.bestLaps ?? [:]
+        cleanStreak = max(0, raw.cleanStreak ?? 0)
         // migration: the legacy scalar bestLap belongs to the classic track
         if bestLaps["classic"] == nil, let legacy = bestLap {
             bestLaps["classic"] = legacy
@@ -609,6 +637,8 @@ struct SaveData: Codable {
     var bestLaps: [String: Double]
     /// #52 iCloud LWW merge clock (ms since epoch; 0 in legacy saves).
     var savedAtMs: Int64
+    /// #15 clean-job streak (0 in legacy saves).
+    var cleanStreak: Int
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -636,6 +666,8 @@ struct RawSave: Codable {
     var bestLaps: [String: Double]?
     /// #52 merge clock; absent (nil → 0) in legacy saves.
     var savedAtMs: Int64?
+    /// #15 clean-job streak; absent (nil → 0) in legacy saves.
+    var cleanStreak: Int?
 }
 
 struct RawCar: Codable {

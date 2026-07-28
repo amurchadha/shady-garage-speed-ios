@@ -82,6 +82,7 @@ struct GarageView: View {
                     StealMinigameView(
                         title: "Swap the \((GameState.partLabels[c.parts[idx].type] ?? "part").lowercased())…",
                         tier: c.parts[idx].tier, heat: game.heat, diffGreen: game.diffMods.green,
+                        combo: scene.stealCombo, // #16 badge
                         onResolve: { zone in scene.resolveSteal(zone) }
                     )
                 }
@@ -238,6 +239,13 @@ struct GarageView: View {
                             .font(sgsFont(13, .semibold))
                             .fixedSize()
                             .accessibilityIdentifier("hud-cash")
+                        if game.cleanStreak >= 2 {
+                            // #15 clean-streak chip
+                            Text("🔥 \(game.cleanStreak)")
+                                .font(sgsFont(12, .black))
+                                .fixedSize()
+                                .accessibilityIdentifier("streak-chip")
+                        }
                         Spacer()
                         SGSButton(title: "", small: true, a11y: "nav-build",
                                   systemImage: "wrench.fill", label: "Build bay") { app.goBuild() }
@@ -279,6 +287,13 @@ struct GarageView: View {
                         .font(sgsFont(14, .semibold))
                         .fixedSize()
                         .accessibilityIdentifier("hud-cash")
+                    if game.cleanStreak >= 2 {
+                        // #15 clean-streak chip
+                        Text("🔥 \(game.cleanStreak)")
+                            .font(sgsFont(13, .black))
+                            .fixedSize()
+                            .accessibilityIdentifier("streak-chip")
+                    }
                     Spacer()
                     meter("Suspicion", value: game.suspicion,
                           color: game.suspicion >= 90 ? .sgsBad : game.suspicion >= 50 ? .sgsWarn : .sgsGood,
