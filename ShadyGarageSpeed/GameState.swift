@@ -654,10 +654,16 @@ final class GameState: ObservableObject {
 
     private let saveKey = "sgs_save"
     private let prevSaveKey = "sgs_save_prev"
+    private let corruptKey = "sgs_save.corrupt"
 
     /// Set by AppState; fires at most once per session when persistence fails.
     var onSaveFailure: (() -> Void)?
     private var saveFailureToastShown = false
+
+    /// True only once the active save slot is known to hold a cleanly decodable
+    /// blob (fresh clean write or clean load). Guards the prevSaveKey backup so a
+    /// corrupt/partial blob can never clobber the last-good backup (web #88).
+    private var loadedCleanly = false
 
     func save() {
         let data = SaveData(
@@ -676,11 +682,14 @@ final class GameState: ObservableObject {
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
-            // keep the previous blob before each overwrite (web #88)
-            if let prev = UserDefaults.standard.data(forKey: saveKey) {
+            // keep the previous blob before each overwrite (web #88), but only when
+            // the active slot was known-good — never let a corrupt blob clobber the
+            // last-good backup.
+            if loadedCleanly, let prev = UserDefaults.standard.data(forKey: saveKey) {
                 UserDefaults.standard.set(prev, forKey: prevSaveKey)
             }
             UserDefaults.standard.set(json, forKey: saveKey)
+            loadedCleanly = true // the slot now holds a blob we just encoded cleanly
             CloudSync.shared.push(json: json) // #52 iCloud (no-op unless enabled)
         } catch {
             if !saveFailureToastShown {
@@ -738,6 +747,7 @@ final class GameState: ObservableObject {
     func resetEverything() {
         UserDefaults.standard.removeObject(forKey: saveKey)
         UserDefaults.standard.removeObject(forKey: prevSaveKey)
+        loadedCleanly = false
         applyLoaded(RawSave()) // all-nil backfill = fresh defaults
     }
 
@@ -747,9 +757,18 @@ final class GameState: ObservableObject {
 
     @discardableResult
     func load() -> Bool {
-        guard let json = UserDefaults.standard.data(forKey: saveKey),
-              let raw = try? JSONDecoder().decode(RawSave.self, from: json) else { return false }
+        loadedCleanly = false
+        guard let json = UserDefaults.standard.data(forKey: saveKey) else { return false }
+        guard let raw = try? JSONDecoder().decode(RawSave.self, from: json) else {
+            // Existing blob but undecodable: quarantine it so it can't be mistaken
+            // for a good save, and leave the last-good backup untouched (web #88).
+            // loadedCleanly stays false → save() will not copy this into prevSaveKey.
+            UserDefaults.standard.set(json, forKey: corruptKey)
+            UserDefaults.standard.removeObject(forKey: saveKey)
+            return false
+        }
         applyLoaded(raw)
+        loadedCleanly = true
         // #70 offline heat decay: −2 heat per hour away, max −20, never below 0.
         // AppState toasts "Things cooled off…" when offlineCool ≥ 10.
         offlineCool = 0

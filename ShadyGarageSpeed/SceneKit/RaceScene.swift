@@ -786,6 +786,8 @@ final class RaceScene: SceneController {
     /// #26 legend confetti burst over the results backdrop (~4s; no-op on reduced motion).
     func confettiBurst(_ count: Int = 120) {
         guard !A11y.reduceMotion else { return }
+        stateLock.lock()
+        defer { stateLock.unlock() }
         for _ in 0..<min(count, confetti.count) {
             let i = confCursor
             confCursor = (confCursor + 1) % confetti.count

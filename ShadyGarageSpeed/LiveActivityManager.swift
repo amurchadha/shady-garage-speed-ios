@@ -12,6 +12,19 @@ import Foundation
 
 enum LiveActivityManager {
     private static var activity: Activity<RaceActivityAttributes>?
+    /// How far out to mark content stale — refreshed on every update. If the app is
+    /// force-quit mid-race the system stops trusting the timer after this window
+    /// instead of showing a frozen lap forever (reconcile() cleans it up on relaunch).
+    private static let staleWindow: TimeInterval = 180
+
+    /// End any Live Activities left over from a prior launch (force-quit orphans).
+    /// ActivityKit persists activities across app kills, so call this once at launch
+    /// before starting a new race.
+    static func reconcile() {
+        for activity in Activity<RaceActivityAttributes>.activities {
+            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        }
+    }
 
     static func start(trackName: String) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
@@ -19,7 +32,7 @@ enum LiveActivityManager {
         let state = RaceActivityAttributes.ContentState(raceT: 0, speedKmh: 0)
         activity = try? Activity.request(
             attributes: attrs,
-            content: ActivityContent(state: state, staleDate: nil),
+            content: ActivityContent(state: state, staleDate: Date().addingTimeInterval(staleWindow)),
             pushType: nil)
     }
 
@@ -27,7 +40,7 @@ enum LiveActivityManager {
     static func update(raceT: Double, speedKmh: Int) {
         guard let activity else { return }
         let state = RaceActivityAttributes.ContentState(raceT: raceT, speedKmh: speedKmh)
-        Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
+        Task { await activity.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(staleWindow))) }
     }
 
     /// finalLap: the finished lap time (shows briefly before dismissing), nil on
@@ -44,6 +57,7 @@ enum LiveActivityManager {
 #else
 
 enum LiveActivityManager {
+    static func reconcile() {}
     static func start(trackName: String) {}
     static func update(raceT: Double, speedKmh: Int) {}
     static func end(finalLap: Double?) {}

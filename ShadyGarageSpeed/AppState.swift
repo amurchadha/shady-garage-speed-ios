@@ -123,6 +123,8 @@ final class AppState: ObservableObject {
 
     init() {
         A11y.observeMotionChanges() // keep the reduce-motion flag live
+        // #57 clean up any Live Activity orphaned by a prior force-quit, before any race.
+        LiveActivityManager.reconcile()
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-reset") {
             UserDefaults.standard.removeObject(forKey: "sgs_save") // fresh state for tests
