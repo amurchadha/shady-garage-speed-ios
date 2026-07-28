@@ -178,9 +178,10 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         shot("accessibility_minigame")
     }
 
-    /// customer archetypes: a Skeptic multiplies suspicion gains ×1.5 (red zone
-    /// 35 → 52.5 → 53). -mgzone red makes the steal outcome deterministic and
-    /// -nowatch keeps the owner's watch cycle from adding its own ×1.5.
+    /// customer archetypes: a Skeptic multiplies suspicion gains ×1.5; batch-15
+    /// economy sync put normal-difficulty susp at ×0.75 (35 × 1.5 × 0.75 = 39.4 → 39).
+    /// -mgzone red makes the steal outcome deterministic and -nowatch keeps the
+    /// owner's watch cycle from adding its own ×1.5.
     func testArchetypeSkepticSuspicion() throws {
         launch(["-reset", "-arch", "skeptic", "-mgzone", "red", "-nowatch", "-phase", "garage"])
         let prompt = app.staticTexts["garage-prompt"]
@@ -196,7 +197,7 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(swap.waitForNonExistence(timeout: 5))
         let susp = app.staticTexts["hud-suspicion"]
         XCTAssertTrue(susp.waitForExistence(timeout: 3))
-        XCTAssertEqual(susp.label, "53", "skeptic red-zone steal should be 35 × 1.5 = 53")
+        XCTAssertEqual(susp.label, "39", "skeptic red-zone steal should be 35 × 1.5 × 0.75 ≈ 39")
         shot("archetype_skeptic")
     }
 
@@ -291,19 +292,19 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         XCTAssertTrue(app.buttons["nav-build"].waitForExistence(timeout: 5))
     }
 
-    /// build bay catalog: buying a Sport engine ($160) from the Catalog tab takes
-    /// the cash ($200 → $40) and drops the part into the inventory.
+    /// build bay catalog: buying a Sport engine ($400 — batch-15 pricing) takes
+    /// the cash ($500 → $100) and drops the part into the inventory.
     func testCatalogBuy() throws {
-        launch(["-reset", "-phase", "build"])
+        launch(["-reset", "-cash", "500", "-phase", "build"])
         let catalog = app.buttons["tab-catalog"]
         XCTAssertTrue(catalog.waitForExistence(timeout: 8))
         catalog.tap()
-        let buy = app.buttons["catalog-buy-engine-2"] // Sport engine, $160
+        let buy = app.buttons["catalog-buy-engine-2"] // Sport engine, $400
         XCTAssertTrue(buy.waitForExistence(timeout: 3))
-        XCTAssertTrue(buy.isEnabled, "catalog buy should be affordable with the $200 start")
+        XCTAssertTrue(buy.isEnabled, "catalog buy should be affordable with $500")
         buy.tap()
-        XCTAssertTrue(waitLabel(app.staticTexts["build-cash"], contains: "$40", timeout: 3),
-                      "cash should drop to $40, got \(app.staticTexts["build-cash"].label)")
+        XCTAssertTrue(waitLabel(app.staticTexts["build-cash"], contains: "$100", timeout: 3),
+                      "cash should drop to $100, got \(app.staticTexts["build-cash"].label)")
         app.buttons["tab-inventory"].tap()
         XCTAssertTrue(app.buttons["install-0"].waitForExistence(timeout: 3),
                       "bought part should appear in the inventory")

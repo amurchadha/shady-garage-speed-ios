@@ -287,8 +287,8 @@ final class GameState: ObservableObject {
     struct DiffMods { let susp: Double, heat: Double, pay: Double, green: Double }
     static let diffTable: [String: DiffMods] = [
         "chill":     DiffMods(susp: 0.6, heat: 0.5, pay: 1.2,  green: 1.3),
-        "normal":    DiffMods(susp: 1,   heat: 1,   pay: 1,    green: 1),
-        "cutthroat": DiffMods(susp: 1.4, heat: 1.5, pay: 0.85, green: 0.75),
+        "normal":    DiffMods(susp: 0.75, heat: 1, pay: 0.8,  green: 1),   // web batch 15
+        "cutthroat": DiffMods(susp: 1.4,  heat: 1.5, pay: 0.68, green: 0.75), // ordering preserved
     ]
     var diffMods: DiffMods { GameState.diffTable[difficulty] ?? GameState.diffTable["normal"]! }
 
@@ -352,8 +352,8 @@ final class GameState: ObservableObject {
     /// Leaderboard order (fastest first). The pink-slip ladder climbs it from
     /// the back: ladder position 0 = Granny Shift … 3 = Vex, 4 = champion.
     static let rivals: [Rival] = [
-        Rival(name: "Vex",          time: 18.5, prizeType: "engine",  prizeTier: 4, purse: 1000),
-        Rival(name: "Torque Queen", time: 21.5, prizeType: "turbo",   prizeTier: 3, purse: 500),
+        Rival(name: "Vex",          time: 20.5, prizeType: "engine",  prizeTier: 4, purse: 1000),
+        Rival(name: "Torque Queen", time: 23.0, prizeType: "turbo",   prizeTier: 3, purse: 500),
         Rival(name: "Lugnut",       time: 25.5, prizeType: "exhaust", prizeTier: 3, purse: 300),
         Rival(name: "Granny Shift", time: 31.0, prizeType: "tires",   prizeTier: 2, purse: 150),
     ]
@@ -425,7 +425,7 @@ final class GameState: ObservableObject {
     // MARK: economy
 
     /// Parts Catalog prices (Build bay): buy new parts straight to inventory.
-    static let catalogPrices: [Int: Int] = [2: 160, 3: 420, 4: 950]
+    static let catalogPrices: [Int: Int] = [2: 400, 3: 1400, 4: 3000] // web batch 15
 
     func chassisCost(_ L: Int) -> Int? {
         let costs = [1: 250, 2: 500, 3: 900]
