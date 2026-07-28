@@ -56,6 +56,14 @@ Web-only items (browser APIs, CI, docs) are intentionally out of scope.
 - [x] #67 Bulk sell (Sell Stock (n · $X) fences all tier-1 in one toast, +5 heat per hot part) — iOS
 - [x] #68 Inventory sort/filter (All|T1–T4 chips + tier/type sort toggle, persisted in settings) — iOS
 - [x] #70 Offline heat decay (−2 heat/hour away on load, max −20, toast at ≥10) — iOS
+- [x] #71 Share card (1200×630 PNG: voxel SG, lap, track, stats, placement, date → share sheet) — iOS
+- [x] #72 Daily board (Rivals | Daily tabs on results; mulberry32-of-date rivals bit-exact with the web; daily best per track+dir resets at midnight) — iOS
+- [x] #73 Achievements (20-item table verbatim, persisted, toast + fanfare on unlock, menu gallery; all web check sites wired) — iOS
+- [x] #74 Lifetime stats (persisted counters + 30s playtime tick; menu Stats sheet with per-track bests) — iOS
+- [x] #75 Hall of Fame (last-10 ring with date/track+dir/lap/place/stats/challenge/legend; menu sheet) — iOS
+- [x] #76 Friend bios (setup ⓘ bio cards + menu Meet the Crew; text verbatim) — iOS
+- [x] #79 Credits (menu footer → credits modal) — iOS
+- [x] #80 What's-New (boot card on version change, dismiss stamps; never on first run) — iOS
 
 ## Earlier iOS batches (pre-backlog)
 

@@ -112,11 +112,13 @@ struct SettingsSheet: View {
     }
 }
 
-/// UIActivityViewController wrapper for the JSON export share sheet.
+/// UIActivityViewController wrapper (save-export JSON, #71 share-card PNG).
 struct ShareSheet: UIViewControllerRepresentable {
-    let text: String
+    let items: [Any]
+    init(text: String) { items = [text] }
+    init(items: [Any]) { self.items = items }
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

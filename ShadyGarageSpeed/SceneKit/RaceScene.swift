@@ -21,6 +21,14 @@ struct FinishData {
     let reward: Int
     let newBest: Bool
     var challenge: ChallengeResult? = nil
+    // #71/#72/#75: share card, daily board, Hall of Fame
+    var trackId = "classic"      // with R suffix when reversed
+    var trackName = "Meadow Loop"
+    var place = 1                // vs the ladder rivals
+    var placeOf = 5
+    var speed = 0
+    var accel = 0
+    var handling = 0
 }
 
 final class RaceScene: SceneController {
@@ -1104,6 +1112,26 @@ final class RaceScene: SceneController {
         }
         finishData = FinishData(lap: lap, best: best, value: value, reward: reward,
                                 newBest: newBest, challenge: challengeResult)
+        // #71/#75 placement vs the ladder rivals + display names
+        var boardTimes = GameState.rivals.map(\.time)
+        boardTimes.append(lap)
+        boardTimes.sort()
+        let place = (boardTimes.firstIndex(of: lap) ?? 0) + 1
+        let trackName = track.name + (reversed ? " (reversed)" : "")
+        finishData?.trackId = trackId
+        finishData?.trackName = trackName
+        finishData?.place = place
+        finishData?.placeOf = boardTimes.count
+        finishData?.speed = stats.speed
+        finishData?.accel = stats.accel
+        finishData?.handling = stats.handling
+        // #75 Hall of Fame ring entry (applied on main below)
+        let hofEntry = HofEntry(date: Date().timeIntervalSince1970 * 1000,
+                                track: trackId, lap: (lap * 100).rounded() / 100, place: place,
+                                speed: stats.speed, accel: stats.accel, handling: stats.handling,
+                                challengeName: challengeResult?.name,
+                                challengeWin: challengeResult?.win,
+                                legend: challengeResult?.becameLegend ?? false)
         if newBest { sfx.fanfare() } else { sfx.success() } // arpeggio on a new best
         Haptics.notify(.success)
         if !reversed { // #51 forward laps only — leaderboards have no direction
@@ -1111,6 +1139,17 @@ final class RaceScene: SceneController {
         }
 
         DispatchQueue.main.async { [game, toasts] in
+            game.stats.races += 1 // #74
+            // #72 daily best per track+dir (resets at midnight local)
+            let today = todayKey()
+            if game.daily.date != today { game.daily = DailyBests(date: today, bests: [:]) }
+            if game.daily.bests[trackId] == nil || lap < game.daily.bests[trackId]! {
+                game.daily.bests[trackId] = lap
+            }
+            // #73 lap achievements use the BASE track id (reversed laps count too)
+            game.checkAchievements(.lap(trackId: self.track.id, lap: lap))
+            game.hof.insert(hofEntry, at: 0) // #75 newest first, ring of 10
+            game.hof = Array(game.hof.prefix(10))
             if newBest {
                 game.bestLaps[trackId] = lap
                 if trackId == "classic" { game.bestLap = lap } // legacy scalar tracks classic
@@ -1118,13 +1157,18 @@ final class RaceScene: SceneController {
             if challengeResult == nil {
                 game.carValue = value
                 game.cash += reward
+                game.addEarnings(reward) // #74 lifetime earnings
             }
             if let ci = self.challengeIndex, let ch = challengeResult {
                 if ch.win {
                     game.ladder = max(game.ladder, ci + 1)
                     game.inventory.append(game.makePart(ch.prizeType, ch.prizeTier))
                     game.cash += ch.purse
+                    game.addEarnings(ch.purse) // #74 lifetime earnings
+                    if ch.prizeTier == 4 { game.checkAchievements(.elitePart) } // #73 first Elite
+                    game.checkAchievements(.pinkslip) // #73 Pink Slippery
                     if game.ladder >= 4 { game.legend = true }
+                    if game.legend { game.checkAchievements(.legend) } // #73 Street Legend
                     let prizeName = "\(GameState.tierNames[ch.prizeTier]) \(GameState.partLabels[ch.prizeType] ?? ch.prizeType)"
                     toasts.push("Won \(ch.name)'s \(prizeName) + $\(ch.purse)!", .good)
                 } else {

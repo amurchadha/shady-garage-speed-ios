@@ -5,6 +5,9 @@ struct SetupView: View {
     @EnvironmentObject var app: AppState
     @State private var name = "Boss"
     @State private var selected = 0
+    /// #76 ⓘ bio sheet (friend index + visibility)
+    @State private var bioInfo: Int? = nil
+    @State private var showBio = false
 
     var body: some View {
         ScrollView {
@@ -33,41 +36,11 @@ struct SetupView: View {
 
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     ForEach(GameState.friends.indices, id: \.self) { i in
-                        let f = GameState.friends[i]
-                        VStack(spacing: 6) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color(rgb: f.color))
-                                    .frame(width: 52, height: 52)
-                                Text(String(f.name.prefix(1)))
-                                    .font(.system(size: 24, weight: .black))
-                                    .foregroundStyle(.white)
-                            }
-                            Text(f.name).font(.headline)
-                            Text(f.tag)
-                                .font(sgsFont(13, .bold))
-                                .foregroundStyle(Color.sgsAccent)
-                            Text(f.desc)
-                                .font(sgsFont(12))
-                                .foregroundStyle(Color.sgsMuted)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.sgsCard2)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14)
-                            .stroke(i == selected ? Color.sgsAccent : Color.white.opacity(0.08),
-                                    lineWidth: i == selected ? 2.5 : 1))
-                        .onTapGesture {
-                            AudioEngine.shared.click()
-                            selected = i
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(f.name)
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityIdentifier("friend-card-\(i)")
+                        friendCard(i)
                     }
+                }
+                .sheet(isPresented: $showBio) {
+                    if let i = bioInfo { CrewSheet(friend: i) }
                 }
 
                 HStack {
@@ -89,5 +62,54 @@ struct SetupView: View {
             .frame(maxWidth: .infinity)
         }
         .foregroundStyle(Color.sgsText)
+    }
+
+    /// Partner card: tap selects, the ⓘ corner opens the #76 bio sheet.
+    private func friendCard(_ i: Int) -> some View {
+        let f = GameState.friends[i]
+        return ZStack(alignment: .topTrailing) {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(Color(rgb: f.color))
+                        .frame(width: 52, height: 52)
+                    Text(String(f.name.prefix(1)))
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundStyle(.white)
+                }
+                Text(f.name).font(.headline)
+                Text(f.tag)
+                    .font(sgsFont(13, .bold))
+                    .foregroundStyle(Color.sgsAccent)
+                Text(f.desc)
+                    .font(sgsFont(12))
+                    .foregroundStyle(Color.sgsMuted)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                AudioEngine.shared.click()
+                selected = i
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(f.name)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("friend-card-\(i)")
+            Button { bioInfo = i; showBio = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.sgsMuted)
+                    .padding(8)
+            }
+            .accessibilityLabel("\(f.name) bio")
+            .accessibilityIdentifier("bio-info-\(i)")
+        }
+        .background(Color.sgsCard2)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .stroke(i == selected ? Color.sgsAccent : Color.white.opacity(0.08),
+                    lineWidth: i == selected ? 2.5 : 1))
     }
 }

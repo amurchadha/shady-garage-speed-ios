@@ -145,6 +145,7 @@ xcrun simctl launch booted com.noshu.shadygaragespeed -phase race -tod night -ra
 - `-streak N` — seed the clean-job streak (streak/chip tests, screenshots).
 - `-reverse` — pre-flip every track card to reversed (and the debug race) (#20 screenshots).
 - `-seedstock N` — seed N tier-1 parts (bulk-sell tests).
+- `-oldversion` — treat the loaded save as stamped by an older version (#80 tests).
 
 ## UI tests
 
@@ -416,6 +417,34 @@ each feature fails silent (never authenticates / never syncs).
   track cards + the debug race), `-seedstock N` (seed N tier-1 parts).
 - New UI tests: `testCleanStreakBonus` (streak 2 → clean job → x3 toast + chip),
   `testSellConfirmAndBulkSell` (bulk button clears stock; Pro sale confirms first).
+
+## Social & meta (#71–#76, #79, #80)
+
+- **Share card (#71)**: results 📤 renders a 1200×630 PNG (voxel SG monogram on the
+  brand gradient, lap time, track, SPD/ACC/HDL, placement, date) via
+  `UIGraphicsImageRenderer` and presents the system share sheet.
+- **Daily board (#72)**: results gets Rivals | Daily tabs — five synthetic rivals
+  (`D-1…D-5`) from `mulberry32(hashStr("daily:" + todayKey))`, times par×0.85–1.3
+  sorted. The RNG port is bit-exact (verified against the JS: identical boards).
+  Your daily best per track+dir lives in `daily.bests` and resets at midnight.
+- **Achievements (#73)**: the 20-item table ported verbatim; unlocks persist in the
+  save and fire a toast + fanfare. All web call sites wired (fix/steal/rage/raid/
+  customer/clean_streak/combo/lap/pinkslip/legend/elite×3/contract/build/crew).
+  Gallery from the menu (🏅).
+- **Lifetime stats (#74)**: persisted counters (customers, fixes, steals, rages,
+  raids, earnings, races, contracts, playtime in 30s ticks, archetype sightings);
+  Stats sheet (📊) with per-track+direction best laps and favorite customer.
+- **Hall of Fame (#75)**: last 10 finished runs (date, track+dir, lap, placement,
+  stat snapshot, challenge result, 🏆 on the legend run) — 🏆 sheet from the menu.
+- **Friend bios (#76)**: setup cards get an ⓘ corner (bio, perk, "best for" — text
+  ported verbatim); Meet the Crew from the menu shows all four.
+- **Credits (#79)**: menu footer (version line) taps into the credits sheet.
+- **What's-New (#80)**: on boot, an existing save whose `lastSeenVersion` lags the
+  app version gets the compact card (bullets ported from `js/version.js`);
+  dismissing stamps it. First-ever players never see it (`newGame` stamps).
+- New UI tests: `testAchievementToast` (first fix → First Wrench toast + gallery),
+  `testWhatsNewOnce` (bump → card → dismiss → never again). Debug arg `-oldversion`
+  simulates a save from an older version.
 
 ## Notes
 

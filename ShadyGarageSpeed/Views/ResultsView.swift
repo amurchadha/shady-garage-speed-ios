@@ -7,6 +7,10 @@ struct ResultsView: View {
     @EnvironmentObject var app: AppState
     @ObservedObject private var gc = GCManager.shared // #51 (stub publishes false when off)
     @Environment(\.horizontalSizeClass) private var hSize
+    /// #72 results board tab: ladder rivals | daily board (-dailytab debug opens Daily).
+    @State private var resTab = ProcessInfo.processInfo.arguments.contains("-dailytab") ? "daily" : "rivals"
+    /// #71 share-card sheet.
+    @State private var showShare = false
 
     var body: some View {
         SceneKitView(controller: app.raceScene, fps: 30, thermal: app.thermalLimited)
@@ -55,6 +59,12 @@ struct ResultsView: View {
                                 .clipShape(Capsule())
                         }
                     }
+                    Spacer()
+                    // #71 share card: 1200×630 PNG via the share sheet
+                    SGSButton(title: "📤", ghost: true, small: true, a11y: "results-share",
+                              label: "Share card", hint: "Share a results card image") {
+                        showShare = true
+                    }
                 }
 
                 VStack(spacing: 6) {
@@ -76,7 +86,7 @@ struct ResultsView: View {
                     }
                 }
 
-                leaderboard(lap: res.lap)
+                board(res) // #72 Rivals | Daily tabs
 
                 HStack {
                     SGSButton(title: "Race Again", a11y: "race-again") { app.raceAgain() }
@@ -99,6 +109,7 @@ struct ResultsView: View {
             .padding(24)
             .frame(maxWidth: 540)
             .foregroundStyle(Color.sgsText)
+            .sheet(isPresented: $showShare) { shareSheet } // #71 share card
         }
     }
 
@@ -148,12 +159,38 @@ struct ResultsView: View {
         .foregroundStyle(Color.sgsText)
     }
 
-    private func leaderboard(lap: Double) -> some View {
-        var rows = GameState.rivals.map { (name: $0.name, time: $0.time, you: false) }
-        rows.append((name: "YOU", time: lap, you: true))
-        rows.sort { $0.time < $1.time }
-        let place = (rows.firstIndex { $0.you } ?? 0) + 1
+    // MARK: #72 results board (Rivals | Daily tabs)
+
+    private func board(_ res: FinishData) -> some View {
+        // rows depend on the tab: ladder rivals + YOU, or today's daily board + YOU
+        var rows: [(name: String, time: Double, you: Bool)]
+        var footer: String
+        if resTab == "daily" {
+            let isR = res.trackId.hasSuffix("R")
+            let baseId = isR ? String(res.trackId.dropLast()) : res.trackId
+            let par = (GameState.tracks.first { $0.id == baseId } ?? GameState.tracks[0]).par + (isR ? 1 : 0)
+            rows = dailyRivals(par: par).map { (name: $0.name, time: $0.time, you: false) }
+            // today's best for this track+dir (the lap just run is already recorded)
+            let youTime = app.game.daily.bests[res.trackId] ?? res.lap
+            rows.append((name: "YOU (today)", time: youTime, you: true))
+            rows.sort { $0.time < $1.time }
+            let place = (rows.firstIndex { $0.you } ?? 0) + 1
+            footer = "Daily board (\(todayKey())): #\(place) of \(rows.count)"
+        } else {
+            rows = GameState.rivals.map { (name: $0.name, time: $0.time, you: false) }
+            rows.append((name: "YOU", time: res.lap, you: true))
+            rows.sort { $0.time < $1.time }
+            footer = "You placed #\((rows.firstIndex { $0.you } ?? 0) + 1) of \(rows.count)"
+        }
         return VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                SGSButton(title: "Rivals", ghost: resTab != "rivals", small: true,
+                          a11y: "res-tab-rivals") { resTab = "rivals" }
+                SGSButton(title: "Daily", ghost: resTab != "daily", small: true,
+                          a11y: "res-tab-daily") { resTab = "daily" }
+                Spacer()
+            }
+            .padding(.horizontal, 8)
             ForEach(Array(rows.enumerated()), id: \.offset) { i, r in
                 HStack(spacing: 8) {
                     Text("#\(i + 1)")
@@ -174,10 +211,25 @@ struct ResultsView: View {
                 .overlay(RoundedRectangle(cornerRadius: 8)
                     .stroke(r.you ? Color.sgsAccent.opacity(0.5) : Color.clear, lineWidth: 1))
             }
-            Text("You placed #\(place) of \(rows.count)")
+            Text(footer)
                 .font(sgsFont(14))
                 .foregroundStyle(Color.sgsMuted)
                 .padding(.top, 2)
+                .accessibilityIdentifier("res-place")
+        }
+    }
+
+    // MARK: #71 share card
+
+    private var shareSheet: some View {
+        Group {
+            if let res = app.lastFinish {
+                ShareSheet(items: [ShareCard.render(
+                    lap: res.lap, trackName: res.trackName,
+                    speed: res.speed, accel: res.accel, handling: res.handling,
+                    place: res.place, placeOf: res.placeOf,
+                    challenge: res.challenge.map { (name: $0.name, win: $0.win) })])
+            }
         }
     }
 }

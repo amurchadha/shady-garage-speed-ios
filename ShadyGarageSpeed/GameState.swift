@@ -120,6 +120,66 @@ final class GameState: ObservableObject {
     @Published var cleanStreak = 0
     /// #70 heat removed by the offline decay on the last load (session, for the toast).
     private(set) var offlineCool = 0
+    /// #73 unlocked achievement ids (persisted; gallery + toasts read this).
+    @Published var achievements: [String] = []
+    /// #74 lifetime counters (persisted).
+    @Published var stats = LifetimeStats()
+    /// #75 Hall of Fame ring: last 10 finished runs, newest first (persisted).
+    @Published var hof: [HofEntry] = []
+    /// #72 today's best per track+dir; resets at midnight (persisted).
+    @Published var daily = DailyBests()
+    /// #80 last version the What's-New card was dismissed on (persisted).
+    @Published var lastSeenVersion = ""
+
+    /// AppState wires this: unlock → toast + fanfare.
+    var onAchievement: ((AchievementDef) -> Void)?
+
+    // MARK: #73 achievements (checker mirrors web checkAchievements)
+
+    @discardableResult
+    func unlock(_ id: String) -> Bool {
+        guard let def = Achievements.byId[id], !achievements.contains(id) else { return false }
+        achievements.append(id)
+        save()
+        onAchievement?(def)
+        return true
+    }
+
+    func checkAchievements(_ event: AchEvent) {
+        switch event {
+        case .fix:       unlock("first_fix")
+        case .steal:     unlock("first_steal")
+        case .rage:      unlock("first_rage")
+        case .customer:
+            if customersServed >= 10 { unlock("cust_10") }
+            if customersServed >= 50 { unlock("cust_50") }
+        case .elitePart: unlock("first_elite")
+        case .build:
+            if GameState.partTypes.allSatisfy({ car.parts[$0]?.tier == 4 }) { unlock("full_elite") }
+            if car.chassis >= 4 { unlock("max_chassis") }
+        case .pinkslip:  unlock("first_pinkslip")
+        case .legend:    unlock("street_legend")
+        case .lap(let trackId, let lap):
+            if trackId == "classic" && lap < 20 { unlock("sub20_classic") }
+            if trackId == "ridge" && lap < 15 { unlock("sub15_ridge") }
+        case .cash:
+            if stats.earnings >= 1000 { unlock("earn_1k") }
+            if stats.earnings >= 10000 { unlock("earn_10k") }
+        case .cleanStreak: if cleanStreak >= 5 { unlock("clean_5") }
+        case .combo(let n): if n >= 3 { unlock("combo_3") }
+        case .contract:
+            unlock("first_contract")
+            if stats.contractsDone >= 5 { unlock("contracts_5") }
+        case .crew:      unlock("crew_hire")
+        case .raid:      unlock("raid_survive")
+        }
+    }
+
+    /// #74 lifetime earnings counter + #73 earn thresholds (all cash-in events).
+    func addEarnings(_ v: Int) {
+        stats.earnings += max(0, v)
+        checkAchievements(.cash)
+    }
 
     // MARK: settings (persisted outside the save blob, like the web's sgs_settings)
 
@@ -150,6 +210,11 @@ final class GameState: ObservableObject {
 
     // MARK: constants (exact match with web data.js)
 
+    /// App version from Info.plist (#80 What's-New, #79 credits).
+    static var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
     static let tierNames = ["", "Stock", "Sport", "Pro", "Elite"]
     static let tierColors: [Int] = [0, 0x9ca3af, 0x3b82f6, 0xa855f7, 0xf59e0b]
     static let chassisNames = ["", "Rust Bucket", "Street Frame", "Sport Chassis", "Pro Tub"]
@@ -168,12 +233,22 @@ final class GameState: ObservableObject {
         let tag: String
         let desc: String
         let color: Int
+        var bio = ""
+        var bestFor = ""
     }
     static let friends: [Friend] = [
-        Friend(name: "Rex",  tag: "Smooth Talker", desc: "+30% customer payments",      color: 0xef4444),
-        Friend(name: "Mia",  tag: "Quick Hands",   desc: "Suspicion gains reduced 25%", color: 0x22c55e),
-        Friend(name: "Dex",  tag: "Parts Guru",    desc: "+$25 per Fix",                color: 0x3b82f6),
-        Friend(name: "Zara", tag: "Wheel Dealer",  desc: "+25% part sell prices",       color: 0xf59e0b),
+        Friend(name: "Rex",  tag: "Smooth Talker", desc: "+30% customer payments",      color: 0xef4444,
+               bio: "Once sold a snowmobile to a penguin. Twice. The penguin still writes him thank-you cards.",
+               bestFor: "players who fix more than they filch"),
+        Friend(name: "Mia",  tag: "Quick Hands",   desc: "Suspicion gains reduced 25%", color: 0x22c55e,
+               bio: "Can pocket a carburetor mid-handshake. Her hands have their own alibi and lawyer on retainer.",
+               bestFor: "habitual five-finger discounters"),
+        Friend(name: "Dex",  tag: "Parts Guru",    desc: "+$25 per Fix",                color: 0x3b82f6,
+               bio: "Speaks fluent torque wrench. Once rebuilt a gearbox with a butter knife and pure spite.",
+               bestFor: "fix-first grinders stacking honest cash"),
+        Friend(name: "Zara", tag: "Wheel Dealer",  desc: "+25% part sell prices",       color: 0xf59e0b,
+               bio: "Knows a buyer for everything. EVERYTHING. Do not ask how the stock moves that fast.",
+               bestFor: "market-watchers flipping hot parts"),
     ]
 
     struct Rival {
@@ -251,6 +326,7 @@ final class GameState: ObservableObject {
         guard cash >= price else { return false }
         cash -= price
         crew.append(i)
+        checkAchievements(.crew) // #73 Team Player
         save()
         return true
     }
@@ -318,7 +394,10 @@ final class GameState: ObservableObject {
         guard let part = match, let idx = inventory.firstIndex(where: { $0.id == part.id }) else { return nil }
         inventory.remove(at: idx)
         cash += c.reward
+        stats.contractsDone += 1 // #74
+        addEarnings(c.reward)    // #74 lifetime earnings
         contract = nil
+        checkAchievements(.contract) // #73 Paperwork / Union Rep
         save()
         return c.reward
     }
@@ -467,6 +546,11 @@ final class GameState: ObservableObject {
         elitePity = 0
         bestLaps = [:]
         cleanStreak = 0
+        achievements = []
+        stats = LifetimeStats()
+        hof = []
+        daily = DailyBests()
+        lastSeenVersion = Self.appVersion // first-ever players never see What's-New
         save()
     }
 
@@ -489,7 +573,8 @@ final class GameState: ObservableObject {
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
             elitePity: elitePity, bestLaps: bestLaps,
             savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
-            cleanStreak: cleanStreak)
+            cleanStreak: cleanStreak, achievements: achievements, stats: stats,
+            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion)
         // Fail silent, but warn once — a broken save must never crash the game.
         do {
             let json = try JSONEncoder().encode(data)
@@ -539,7 +624,8 @@ final class GameState: ObservableObject {
             contract: contract, crew: crew, tutorialSeen: tutorialSeen,
             elitePity: elitePity, bestLaps: bestLaps,
             savedAtMs: Int64(Date().timeIntervalSince1970 * 1000),
-            cleanStreak: cleanStreak)
+            cleanStreak: cleanStreak, achievements: achievements, stats: stats,
+            hof: hof, daily: daily, lastSeenVersion: lastSeenVersion)
         let payload = SaveExport(app: "shady-garage-speed", saveVersion: 2,
                                  exportedAt: ISO8601DateFormatter().string(from: Date()), data: data)
         let encoder = JSONEncoder()
@@ -604,6 +690,11 @@ final class GameState: ObservableObject {
         elitePity = max(0, raw.elitePity ?? 0)
         bestLaps = raw.bestLaps ?? [:]
         cleanStreak = max(0, raw.cleanStreak ?? 0)
+        achievements = (raw.achievements ?? []).filter { Achievements.byId[$0] != nil }
+        stats = raw.stats ?? LifetimeStats()
+        hof = Array((raw.hof ?? []).prefix(10))
+        daily = raw.daily ?? DailyBests()
+        lastSeenVersion = raw.lastSeenVersion ?? ""
         // migration: the legacy scalar bestLap belongs to the classic track
         if bestLaps["classic"] == nil, let legacy = bestLap {
             bestLaps["classic"] = legacy
@@ -639,6 +730,11 @@ struct SaveData: Codable {
     var savedAtMs: Int64
     /// #15 clean-job streak (0 in legacy saves).
     var cleanStreak: Int
+    var achievements: [String]      // #73
+    var stats: LifetimeStats        // #74
+    var hof: [HofEntry]             // #75
+    var daily: DailyBests           // #72
+    var lastSeenVersion: String     // #80
 }
 
 // All-optional shape so older saves missing new fields still decode (migration).
@@ -668,6 +764,11 @@ struct RawSave: Codable {
     var savedAtMs: Int64?
     /// #15 clean-job streak; absent (nil → 0) in legacy saves.
     var cleanStreak: Int?
+    var achievements: [String]?
+    var stats: LifetimeStats?
+    var hof: [HofEntry]?
+    var daily: DailyBests?
+    var lastSeenVersion: String?
 }
 
 struct RawCar: Codable {

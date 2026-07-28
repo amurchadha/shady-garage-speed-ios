@@ -90,6 +90,10 @@ final class AppState: ObservableObject {
             raceScene.photoMode = showPhotoMode
         }
     }
+    /// #80 what's-new card (boot, when the save's version stamp differs).
+    @Published var showWhatsNew = false
+    /// #74 playtime accumulator (30s chunks, like the web's setInterval).
+    private var playTimer: Timer?
 
     /// VoiceOver phase names ("Garage. Day 3." style).
     private var phaseDescription: String {
@@ -128,6 +132,24 @@ final class AppState: ObservableObject {
         if game.offlineCool >= 10 {
             toasts.push("Things cooled off while you were away. (−\(game.offlineCool) heat)", .info)
         }
+        // #80 what's-new: existing save whose stamp is behind the app version
+        // (-oldversion debug: simulate a save from an older version for tests)
+        if args.contains("-oldversion") { game.lastSeenVersion = "" }
+        if game.hasSave(), game.lastSeenVersion != GameState.appVersion {
+            showWhatsNew = true
+        }
+        // #73 achievement unlock → toast + fanfare
+        game.onAchievement = { [weak self] def in
+            guard let self else { return }
+            self.toasts.push("\(def.icon) \(def.name) — \(def.desc)", .good)
+            AudioEngine.shared.fanfare()
+        }
+        // #74 playtime: accumulate 30s chunks into the save
+        playTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.game.stats.playtimeSec += 30
+            self.game.save()
+        }
         game.onSaveFailure = { [weak self] in
             self?.toasts.push("⚠️ Save failed — progress may not persist.", .bad)
         }
@@ -151,6 +173,17 @@ final class AppState: ObservableObject {
             }
             if ProcessInfo.processInfo.arguments.contains("-confetti") {
                 self.raceScene.confettiBurst() // debug: force a confetti burst
+            }
+            if ProcessInfo.processInfo.arguments.contains("-sharecard") {
+                // debug: dump the #71 share card to Documents/sharecard.png
+                let img = ShareCard.render(lap: data.lap, trackName: data.trackName,
+                                           speed: data.speed, accel: data.accel, handling: data.handling,
+                                           place: data.place, placeOf: data.placeOf,
+                                           challenge: data.challenge.map { (name: $0.name, win: $0.win) })
+                if let png = img.pngData() {
+                    let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    try? png.write(to: url.appendingPathComponent("sharecard.png"))
+                }
             }
             if data.challenge?.becameLegend == true {
                 self.showLegendOverlay = true
@@ -212,6 +245,13 @@ final class AppState: ObservableObject {
 
         // #51 Game Center (compiled out unless GAMECENTER_ENABLED — see project.yml)
         GCManager.shared.authenticate()
+    }
+
+    /// #80 dismissing the card stamps the current version into the save.
+    func dismissWhatsNew() {
+        game.lastSeenVersion = GameState.appVersion
+        game.save()
+        showWhatsNew = false
     }
 
     /// #54 quick action / #58 App Intent: "track-select" — land in the garage with

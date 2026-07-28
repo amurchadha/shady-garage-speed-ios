@@ -22,6 +22,7 @@
 		5EB5EE2D2AFB4D1CD1DD667C /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A004658E16FC9AC44EA805CD /* Components.swift */; };
 		6070CD4666C5576E0B549896 /* LugnutShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2AA94654D698B034881DBD /* LugnutShared.swift */; };
 		60F70D144A82295BA080ACFA /* StealMinigameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C43E9D0AEDB0DC640ABCC3 /* StealMinigameView.swift */; };
+		67B4EDB9F8DFA794498BA34B /* MetaSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C19CF75DFB4A88209C9794F /* MetaSystems.swift */; };
 		6F42A838DC40DF05277A3ACE /* TrackSelectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11981C15CB770240F1FA3978 /* TrackSelectSheet.swift */; };
 		70F55A64EFD27757CD01DB52 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58B44BF7906FFA6093EB3E32 /* ResultsView.swift */; };
 		77258F5F26631B80EE8CCF97 /* AppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8AE39419A384878D7F699F /* AppIntents.swift */; };
@@ -46,6 +47,7 @@
 		E65159FD5453DB7856AC0BA4 /* LugnutShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C2AA94654D698B034881DBD /* LugnutShared.swift */; };
 		F2C1204DE6922D67F7D68935 /* HireSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75990D83AD6B474A014C121B /* HireSheet.swift */; };
 		FBEE90CF9643ABFB555D1C1C /* RaceActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC1F32B1615854AD778676FB /* RaceActivityAttributes.swift */; };
+		FF3883F5F2221F4AD746FE3C /* MetaSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30E722E1516120F042B70C94 /* MetaSheets.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,9 +84,11 @@
 /* Begin PBXFileReference section */
 		004507589C62AC0B83C69A01 /* LadderSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadderSheet.swift; sourceTree = "<group>"; };
 		0061D71E13CC0AC631B3DECB /* CloudSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSync.swift; sourceTree = "<group>"; };
+		0C19CF75DFB4A88209C9794F /* MetaSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSystems.swift; sourceTree = "<group>"; };
 		11981C15CB770240F1FA3978 /* TrackSelectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackSelectSheet.swift; sourceTree = "<group>"; };
 		28A4A03FA6F8F272A9B89AC9 /* ShadyGarageSpeed.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ShadyGarageSpeed.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		293D9A25A967EEADF48DD564 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		30E722E1516120F042B70C94 /* MetaSheets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSheets.swift; sourceTree = "<group>"; };
 		33078A13FE42E1C4060A0E0F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3C2AA94654D698B034881DBD /* LugnutShared.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LugnutShared.swift; sourceTree = "<group>"; };
 		459D2610E8DE449ABE9064FC /* GarageScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScene.swift; sourceTree = "<group>"; };
@@ -135,6 +139,7 @@
 				75990D83AD6B474A014C121B /* HireSheet.swift */,
 				004507589C62AC0B83C69A01 /* LadderSheet.swift */,
 				45E1A61685DCDB9414B9F918 /* MenuView.swift */,
+				30E722E1516120F042B70C94 /* MetaSheets.swift */,
 				5EA06D343182BF4AC7DA5633 /* RaceView.swift */,
 				58B44BF7906FFA6093EB3E32 /* ResultsView.swift */,
 				677CA5CE8A7DE9D5E3452D8B /* SceneKitView.swift */,
@@ -188,6 +193,7 @@
 				8A6AA1BE9E87CF2737251E1F /* Haptics.swift */,
 				D1D248B685BC088200F0EDA5 /* Info.plist */,
 				6FFBBEF8DB7DF347C1FA8F2C /* LiveActivityManager.swift */,
+				0C19CF75DFB4A88209C9794F /* MetaSystems.swift */,
 				E6A79957CC6DCAA2E44AE1E9 /* ShadyGarageSpeed.entitlements */,
 				B23BF17348E97E1A81360320 /* ShadyGarageSpeedApp.swift */,
 				A1794CFE4838D2EFB66AD1CF /* SceneKit */,
@@ -372,6 +378,8 @@
 				786E15B6729257CC5E8B3514 /* LiveActivityManager.swift in Sources */,
 				E65159FD5453DB7856AC0BA4 /* LugnutShared.swift in Sources */,
 				CBBD77FE5BAFECBC0BCDC8CA /* MenuView.swift in Sources */,
+				FF3883F5F2221F4AD746FE3C /* MetaSheets.swift in Sources */,
+				67B4EDB9F8DFA794498BA34B /* MetaSystems.swift in Sources */,
 				8DED800AB3389DD82DD2880C /* RaceActivityAttributes.swift in Sources */,
 				777ECF5B3480A2919A27FD17 /* RaceScene.swift in Sources */,
 				993E2579CDA16989CEF51693 /* RaceView.swift in Sources */,

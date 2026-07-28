@@ -154,6 +154,7 @@ final class BuildScene: SceneController {
         }
         game.cash -= cost
         game.car.chassis += 1
+        game.checkAchievements(.build) // #73 Pro Tub at max chassis
         game.save()
         refreshCustomCar()
         sfx.success()
@@ -167,6 +168,7 @@ final class BuildScene: SceneController {
         game.inventory.remove(at: idx)
         if let replaced { game.inventory.append(replaced) }
         game.car.parts[part.type] = part
+        game.checkAchievements(.build) // #73 Full Dress (all-Elite check)
         game.save()
         refreshCustomCar()
         sfx.success()
@@ -179,6 +181,7 @@ final class BuildScene: SceneController {
         let price = game.fencePrice(part) // demand-scaled fence price
         game.inventory.remove(at: idx)
         game.cash += price
+        game.addEarnings(price) // #74 lifetime earnings
         if part.stolenDay == game.day {
             game.heat = min(100, game.heat + 5) // hot parts draw attention
             toasts.push("Fence moved a hot part… +5 Heat", .warn)
@@ -200,6 +203,7 @@ final class BuildScene: SceneController {
         }
         game.inventory.removeAll { $0.tier == 1 }
         game.cash += total
+        game.addEarnings(total) // #74 lifetime earnings
         if hot > 0 {
             game.heat = min(100, game.heat + 5 * hot)
             toasts.push("Hot goods attracted attention +\(5 * hot) Heat", .warn)
@@ -231,6 +235,7 @@ final class BuildScene: SceneController {
         }
         game.cash -= price
         game.inventory.append(game.makePart(type, tier))
+        if tier == 4 { game.checkAchievements(.elitePart) } // #73 first Elite
         game.save()
         sfx.cash()
         toasts.push("Bought \(GameState.tierNames[tier]) \(GameState.partLabels[type] ?? type) -$\(price)", .good)

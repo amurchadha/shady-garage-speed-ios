@@ -374,6 +374,8 @@ final class GarageScene: SceneController {
         let fine = Int((Double(game.cash) * 0.25).rounded()) // 25% cash fine
         game.cash = max(0, game.cash - fine)
         game.heat = 30
+        game.stats.raids += 1 // #74
+        game.checkAchievements(.raid) // #73 Still Standing
         dayEvents.insert("raid") // tomorrow's headline is sorted
         game.save()
         sfx.fail()
@@ -427,6 +429,7 @@ final class GarageScene: SceneController {
         defer { stateLock.unlock() }
         let c = game.generateCustomer()
         customer = c
+        game.stats.archSeen[c.archetype, default: 0] += 1 // #74 favorite archetype
         // #17 from Day 10 the next customer inherits 20% of the last one's
         // ending suspicion (cap 30); one-time toast, nothing persisted.
         if game.day >= 10 && lastJobSuspicion > 0 {
@@ -514,6 +517,8 @@ final class GarageScene: SceneController {
         jobState = "angry"
         shakeT = 0.9
         dayEvents.insert("rage")
+        game.stats.rages += 1 // #74
+        game.checkAchievements(.rage) // #73 Busted
         say("rage", 3)
         sfx.fail()
         Haptics.rageThud() // #56 heavy triple thud as they storm off
@@ -653,6 +658,8 @@ final class GarageScene: SceneController {
         customer = c
         flashType = p.type // green part flash on the fix moment
         flashUntil = elapsed + 0.6
+        game.stats.fixes += 1 // #74
+        game.checkAchievements(.fix) // #73 First Wrench
         sfx.ratchet()
         sfx.success()
         toasts.push("Fixed \(GameState.partLabels[p.type] ?? p.type) +$\(amount)", .good)
@@ -710,6 +717,9 @@ final class GarageScene: SceneController {
             jobActions += 1
             jobSteals += 1
             game.cleanStreak = 0 // #15 any steal breaks the clean streak immediately
+            game.stats.steals += 1 // #74
+            game.checkAchievements(.steal) // #73 Five-Finger Discount
+            if tier == 4 { game.checkAchievements(.elitePart) } // #73 first Elite
             game.heat = min(100, game.heat + Int(((6.0 + 2.0 * Double(tier)) * game.diffMods.heat).rounded()))
             if game.heat >= 35 && !game.heatHintShown {
                 game.heatHintShown = true // one-time onboarding, persisted
@@ -718,6 +728,7 @@ final class GarageScene: SceneController {
             // #16 green-steal combo: green #2 → ×0.85, green #3+ → ×0.7; yellow/red resets
             if zone == "green" { stealCombo += 1 } else { stealCombo = 0 }
             let comboMult = stealCombo >= 3 ? 0.7 : stealCombo == 2 ? 0.85 : 1
+            if zone == "green" { game.checkAchievements(.combo(stealCombo)) } // #73 Surgeon
             var gain = (zone == "green" ? Double(12 + 6 * tier) : Double(25 + 8 * tier)) * mult
             if zone == "green" { gain *= comboMult }
             addSuspicion(gain)
@@ -755,7 +766,10 @@ final class GarageScene: SceneController {
         let streakBonus = jobSteals == 0 && game.cleanStreak % 3 == 0
         let payment = Int((Double(jobTotal) * mult).rounded())
         game.cash += payment
+        game.addEarnings(payment) // #74 lifetime earnings (+ #73 earn thresholds)
         game.customersServed += 1
+        game.checkAchievements(.customer) // #73 Regulars / Assembly Line
+        if jobSteals == 0 { game.checkAchievements(.cleanStreak) } // #73 Squeaky Clean
         game.advanceDay()
         if c.golden { dayEvents.insert("golden") }
         if c.archetype == "rushed" && onTime { dayEvents.insert("rush") }

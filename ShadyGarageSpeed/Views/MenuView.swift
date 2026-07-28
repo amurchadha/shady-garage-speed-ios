@@ -4,6 +4,11 @@ import SwiftUI
 struct MenuView: View {
     @EnvironmentObject var app: AppState
     @State private var showHowTo = false
+    @State private var showAchv = ProcessInfo.processInfo.arguments.contains("-achvsheet")
+    @State private var showStats = ProcessInfo.processInfo.arguments.contains("-statssheet")
+    @State private var showHof = ProcessInfo.processInfo.arguments.contains("-hofsheet")
+    @State private var showCrew = ProcessInfo.processInfo.arguments.contains("-crewbios")
+    @State private var showCredits = false
 
     var body: some View {
         GeometryReader { geo in
@@ -44,12 +49,26 @@ struct MenuView: View {
                 }
                 .frame(maxWidth: 320)
 
-                // version + build from Info.plist, plus the difficulty mode (#90)
+                // social/meta sheets (#73–#76): achievements, stats, HoF, crew bios
+                HStack(spacing: 10) {
+                    SGSButton(title: "", small: true, a11y: "menu-achv",
+                              systemImage: "medal.fill", label: "Achievements") { showAchv = true }
+                    SGSButton(title: "", small: true, a11y: "menu-stats",
+                              systemImage: "chart.bar.fill", label: "Lifetime stats") { showStats = true }
+                    SGSButton(title: "", small: true, a11y: "menu-hof",
+                              systemImage: "trophy.fill", label: "Hall of Fame") { showHof = true }
+                    SGSButton(title: "", small: true, a11y: "menu-crew",
+                              systemImage: "person.2.fill", label: "Meet the Crew") { showCrew = true }
+                }
+
+                // version + build from Info.plist, plus the difficulty mode (#90);
+                // tap → credits (#79)
                 Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") (\(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")) · \(app.game.difficulty.capitalized)")
                     .font(sgsFont(12))
                     .foregroundStyle(Color.sgsMuted.opacity(0.8))
                     .padding(.top, 8)
                     .accessibilityIdentifier("menu-footer")
+                    .onTapGesture { showCredits = true }
             }
             .multilineTextAlignment(.center)
             .foregroundStyle(Color.sgsText)
@@ -59,7 +78,21 @@ struct MenuView: View {
             if showHowTo {
                 HowToModal(show: $showHowTo)
             }
+
+            // #80 what's-new: compact card on boot when the version moved
+            if app.showWhatsNew {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { app.dismissWhatsNew() }
+                WhatsNewCard(version: GameState.appVersion) { app.dismissWhatsNew() }
+                    .transition(.opacity)
+            }
         }
+        .sheet(isPresented: $showAchv) { AchievementsSheet(game: app.game) }
+        .sheet(isPresented: $showStats) { StatsSheet(game: app.game) }
+        .sheet(isPresented: $showHof) { HallOfFameSheet(game: app.game) }
+        .sheet(isPresented: $showCrew) { CrewSheet() }
+        .sheet(isPresented: $showCredits) { CreditsSheet() }
     }
     }
 }

@@ -479,6 +479,50 @@ final class ShadyGarageSpeedUITests: XCTestCase {
         shot("sell_done")
     }
 
+    /// #73 achievement unlock: first fix fires the First Wrench toast (+ fanfare).
+    func testAchievementToast() throws {
+        launch(["-reset", "-phase", "garage", "-notut"])
+        let prompt = app.staticTexts["garage-prompt"]
+        XCTAssertTrue(prompt.waitForExistence(timeout: 15))
+        XCTAssertTrue(waitLabel(prompt, contains: "Tap a part", timeout: 15))
+
+        XCTAssertTrue(tapFirstEnabled("fix", range: 0...5), "no fixable part")
+        XCTAssertTrue(app.staticTexts["🔧 First Wrench — Fix your first part."]
+                        .waitForExistence(timeout: 3),
+                      "First Wrench achievement toast should fire on the first fix")
+
+        // the gallery from the menu shows it unlocked
+        app.buttons["nav-menu"].tap()
+        app.buttons["menu-achv"].tap()
+        let row = app.staticTexts.matching(NSPredicate(format: "identifier == 'achv-first_fix'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "gallery row should exist")
+        shot("achievements_gallery")
+    }
+
+    /// #80 what's-new: shows once on a version bump (simulated via -oldversion),
+    /// dismiss stamps the version, and it never reappears on the next boot.
+    func testWhatsNewOnce() throws {
+        // build a save first (newGame stamps the current version)
+        launch(["-reset", "-phase", "setup"])
+        XCTAssertTrue(app.buttons["start-day1"].waitForExistence(timeout: 5))
+        app.buttons["start-day1"].tap()
+        XCTAssertTrue(app.buttons["nav-build"].waitForExistence(timeout: 8))
+        app.terminate()
+
+        // version bump: the card appears exactly once
+        launch(["-oldversion"])
+        let card = app.otherElements["whatsnew-card"]
+        XCTAssertTrue(card.waitForExistence(timeout: 5), "what's-new card should show on a version bump")
+        shot("whats_new")
+        app.buttons["whatsnew-dismiss"].tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 3), "dismiss should close the card")
+        app.terminate()
+
+        // next boot: stamped — no card
+        launch([])
+        XCTAssertFalse(card.waitForExistence(timeout: 4), "what's-new must not reappear after stamping")
+    }
+
     /// landscape: garage HUD + race controls must fit sideways. Runs LAST (name sorts
     /// after the other tests) so its device rotation can't leak into them — this XCTest
     /// build mis-synthesizes tap/isHittable coordinates for the rest of a session once
